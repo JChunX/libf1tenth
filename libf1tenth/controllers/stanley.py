@@ -1,6 +1,9 @@
 import numpy as np
+from .lateral_controller import LateralController
 
-
-class StanleyController:
+class StanleyController(LateralController):
     def __init__(self):
-        print("PathFollower initialized")
+        pass
+    
+    def get_steering_angle(self, pose, waypoints):
+        pass
