@@ -7,6 +7,7 @@ from .car_dynamics import vehicle_dynamics_st
 class RaceCarModel:
     
     def __init__(self):
+        # relative import https://stackoverflow.com/questions/40416072/reading-a-file-using-a-relative-path-in-a-python-project
         dynamics_params_path = Path(__file__).parent / "../config/dynamics.json"    
         with open(dynamics_params_path, 'r') as f:
             params = json.load(f)
