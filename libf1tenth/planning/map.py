@@ -40,13 +40,15 @@ class Map:
         self.free_thresh = params_dict['free_thresh']
         
         # read image
-        self.image = cv2.imread(self.image_path, cv2.IMREAD_GRAYSCALE)
+        print(self.image_path)
+        self.image = cv2.imread(self.image_path, -1)#cv2.IMREAD_GRAYSCALE)
         
     def show_map(self):
         '''
         shows the map
         '''
         plt.figure()
+        print(self.image)
         plt.imshow(self.image, cmap='gray')
         
     def show_coordinates(self, xs_cart, ys_cart, color=None, size=600):
@@ -70,12 +72,18 @@ class Map:
         x0 = xs[0]
         y0 = ys[0]
         
-        plt.imshow(self.image[y0-half_size:y0+half_size, x0-half_size:x0+half_size], cmap='gray')
+        # shows a square around the initial coordinates
+        plt.imshow(self.image, cmap='gray')
         
         if color is not None:
-            plt.scatter(xs-x0+half_size, ys-y0+half_size, s=100, c=color, cmap='rainbow')
+            #plt.scatter(xs-x0+half_size, ys-y0+half_size, s=100, c=color, cmap='rainbow')
+            plt.scatter(xs, ys, s=100, c=color, cmap='rainbow')
         else:
-            plt.scatter(xs-x0+half_size, ys-y0+half_size, s=100, c=np.arange(len(xs)), cmap='rainbow')
+            #plt.scatter(xs-x0+half_size, ys-y0+half_size, s=100, c=np.arange(len(xs)), cmap='rainbow')
+            plt.scatter(xs, ys, s=100, c=np.arange(len(xs)), cmap='rainbow')
+            
+        # equal aspect ratio
+        plt.gca().set_aspect('equal', adjustable='box')
             
         step = 1 # meters
         step = step / self.resolution # convert to pixels
@@ -98,10 +106,10 @@ class Map:
         xlabels = np.concatenate((xlabels_neg[::-1][:-1], xlabels_pos))
         ylabels = np.concatenate((ylabels_neg[::-1][:-1], ylabels_pos))
         
-        plt.xticks(xticks, xlabels, rotation=45, fontsize=20)
-        plt.yticks(yticks, ylabels, rotation=0, fontsize=20)
+        #plt.xticks(xticks, xlabels, rotation=45, fontsize=20)
+        #plt.yticks(yticks, ylabels, rotation=0, fontsize=20)
         
-        plt.grid()
+        #plt.grid()
         plt.show()
         
     def cartesian_to_pixel(self, x, y):
