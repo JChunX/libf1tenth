@@ -56,5 +56,6 @@ class PurePursuitController(LateralController):
                         [np.sin(orientation), np.cos(orientation)]]).T
         waypoint_ego = RCM @ (waypoint_to_track - position)
         angle = self.K * (2*(waypoint_ego[1]))/(self.lookahead ** 2)
+        angle = np.clip(angle, np.deg2rad(-24), np.deg2rad(24))
         
         return angle, waypoint_to_track
