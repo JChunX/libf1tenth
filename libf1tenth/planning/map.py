@@ -20,6 +20,8 @@ class Map:
         self.negate = 0
         self.occupied_thresh = 0.65
         self.free_thresh = 0.196
+        self.height = None
+        self.width = None
     
     
     def initialize(self, path):
@@ -40,8 +42,8 @@ class Map:
         self.free_thresh = params_dict['free_thresh']
         
         # read image
-        print(self.image_path)
         self.image = cv2.imread(self.image_path, -1)#cv2.IMREAD_GRAYSCALE)
+        self.height, self.width = self.image.shape
         
     def show_map(self):
         '''
@@ -68,7 +70,7 @@ class Map:
         plt.figure(figsize=(30, 30))
         # use initial coordinates to center the map
         
-        xs, ys = self.cartesian_to_pixel(xs_cart, -ys_cart) # -ys flips the y axis for correct plotting
+        xs, ys = self.cartesian_to_pixel(xs_cart, ys_cart)
         x0 = xs[0]
         y0 = ys[0]
         
@@ -116,7 +118,8 @@ class Map:
         '''
         converts cartesian coordinates to pixel coordinates
         '''
+        print(self.origin)
         x_pixel = np.round((x - self.origin[0]) / self.resolution).astype(int)
-        y_pixel = np.round((y - self.origin[1]) / self.resolution).astype(int)
+        y_pixel = self.height - np.round((y - self.origin[1]) / self.resolution).astype(int)
         
         return x_pixel, y_pixel
