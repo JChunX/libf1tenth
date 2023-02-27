@@ -7,8 +7,8 @@ from scipy import interpolate
 class Waypoints:
              
     def __init__(self, x, y, steering, velocity, yaw, yaw_rate, slip_angle):
-        self.x = x.astype(np.double)
-        self.y = y.astype(np.double)
+        self.x = x
+        self.y = y
         self.steering = steering
         self.velocity = velocity
         self.yaw = yaw
