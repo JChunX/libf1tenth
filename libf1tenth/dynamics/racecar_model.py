@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from .car_dynamics import vehicle_dynamics_st
+from libf1tenth.dynamics.car_dynamics import vehicle_dynamics_st
 
 
 class RaceCarModel:

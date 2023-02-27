@@ -5,5 +5,5 @@ class LongitudinalController:
     def __init__(self):
         pass
 
-    def get_speed(self, velocity, angle, target_speed):
+    def get_speed(self, speed, angle, target_speed):
         raise NotImplementedError

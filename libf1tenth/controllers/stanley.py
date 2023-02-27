@@ -1,5 +1,5 @@
 import numpy as np
-from .lateral_controller import LateralController
+from libf1tenth.controllers import LateralController
 
 class StanleyController(LateralController):
     def __init__(self):
