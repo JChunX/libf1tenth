@@ -17,10 +17,11 @@ class PDSpeedController(LongitudinalController):
         self.error_filter.update(cur_error)
         cur_error = self.error_filter.get_value()
         
-        speed = self.k_p * cur_error + self.k_d * cur_error_derivative
+        speed += self.k_p * cur_error + self.k_d * cur_error_derivative
         
         if not self.error_derivative_filter.is_ready():
             return 0.0
+        speed = max(0.0, speed)
         return speed
     
 if __name__ == '__main__':

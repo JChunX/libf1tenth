@@ -4,11 +4,14 @@ from libf1tenth.controllers import LateralController
 
 class PurePursuitController(LateralController):
     
-    def __init__(self, K, lookahead, alpha=0.1):
+    def __init__(self, K, lookahead, alpha=0.1, beta=0.7, max_speed=15.0):
         super().__init__()
         self.K = K
+        self.K_thresh = 4.0
         self.base_lookahead = lookahead
         self.alpha = alpha
+        self.beta = beta
+        self.max_speed = max_speed
         
     def _find_waypoint_to_track(self, pose, waypoints):
         """
@@ -61,7 +64,13 @@ class PurePursuitController(LateralController):
         RCM = np.array([[np.cos(orientation), -np.sin(orientation)], 
                         [np.sin(orientation), np.cos(orientation)]]).T
         waypoint_ego = RCM @ (waypoint_to_track[:2] - position)
-        angle = self.K * (2*(waypoint_ego[1]))/(self.lookahead ** 2)
+        
+        if prev_velocity > self.K_thresh:
+            K = max(0.0, self.K * (1 - self.beta * ((prev_velocity - self.K_thresh)/ (self.max_speed-self.K_thresh))))
+        else:
+            K = self.K
+        
+        angle = K * (2*(waypoint_ego[1]))/(self.lookahead ** 2)
         angle = np.clip(angle, np.deg2rad(-24), np.deg2rad(24))
         
         return angle, waypoint_to_track
