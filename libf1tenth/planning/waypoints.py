@@ -31,13 +31,15 @@ class Waypoints:
     def create_splines(self):
         t = np.arange(len(self.x))
         if self.is_periodic:
-            t_2 = np.arange(len(self.x), 2*len(self.x))
-            self.cs_x = CubicSpline(np.concatenate((t, t_2)), 
-                                    np.concatenate((self.x, self.x)), 
-                                    bc_type='periodic')
-            self.cs_y = CubicSpline(np.concatenate((t, t_2)), 
-                                    np.concatenate((self.y, self.y)), 
-                                    bc_type='periodic')
+            #t_2 = np.arange(len(self.x), 2*len(self.x)-1)
+            #self.cs_x = CubicSpline(np.concatenate((t, t_2)), 
+            #                        np.concatenate((self.x, self.x[1:])), 
+            #                        bc_type='periodic')
+            #self.cs_y = CubicSpline(np.concatenate((t, t_2)), 
+            #                        np.concatenate((self.y, self.y[1:])), 
+            #                        bc_type='periodic')
+            self.cs_x = CubicSpline(t, self.x, bc_type='periodic')
+            self.cs_y = CubicSpline(t, self.y, bc_type='periodic')
         else:
             self.cs_x = CubicSpline(t, self.x)
             self.cs_y = CubicSpline(t, self.y)
@@ -51,7 +53,7 @@ class Waypoints:
         # assert factor is an integer
         assert factor == int(factor), "factor must be an integer"
 
-        ts = np.arange(0, len(self.x), 1/factor)
+        ts = np.arange(0, len(self.x), 1/factor)[:-factor+1]
         x = self.cs_x(ts)
         y = self.cs_y(ts)
         
@@ -74,12 +76,13 @@ class Waypoints:
     def smooth(self, sigma):
         x = gaussian_filter(np.concatenate((self.x, self.x, self.x)), sigma=sigma)[len(self.x):2*len(self.x)]
         y = gaussian_filter(np.concatenate((self.y, self.y, self.y)), sigma=sigma)[len(self.y):2*len(self.y)]
-        steering = gaussian_filter(self.steering, sigma=sigma)
-        velocity = gaussian_filter(self.velocity, sigma=sigma)
-        yaw = gaussian_filter(self.yaw, sigma=sigma)
-        yaw_rate = gaussian_filter(self.yaw_rate, sigma=sigma)
-        slip_angle = gaussian_filter(self.slip_angle, sigma=sigma)
-        return Waypoints(x, y, steering, velocity, yaw, yaw_rate, slip_angle)
+
+        return Waypoints(x, y, 
+                         self.steering, 
+                         self.velocity, 
+                         self.yaw, 
+                         self.yaw_rate, 
+                         self.slip_angle)
         
         
     def to_csv(self, csv):
