@@ -50,7 +50,7 @@ def main():
     else:
         save_path = os.path.join(home_dir, bag_path, date_time)
     
-    cmd = ['ros2', 'bag', 'record', '-a', '-o', save_path]
+    cmd = ['ros2', 'bag', 'record', '-s', 'mcap', '-a', '-o', save_path]
     cmd = ' '.join(cmd)
     # call cmd using os.system(cmd)
     print("calling bag command: ", cmd)
