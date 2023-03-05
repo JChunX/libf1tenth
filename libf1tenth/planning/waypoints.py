@@ -74,8 +74,8 @@ class Waypoints:
         return Waypoints(x, y, steering, velocity, yaw, yaw_rate, slip_angle)
     
     def smooth(self, sigma):
-        x = gaussian_filter(np.concatenate((self.x, self.x, self.x)), sigma=sigma)[len(self.x):2*len(self.x)]
-        y = gaussian_filter(np.concatenate((self.y, self.y, self.y)), sigma=sigma)[len(self.y):2*len(self.y)]
+        x = gaussian_filter(self.x, sigma=sigma)
+        y = gaussian_filter(self.y, sigma=sigma)
 
         return Waypoints(x, y, 
                          self.steering, 
