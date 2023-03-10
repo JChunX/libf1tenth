@@ -3,9 +3,10 @@ import numpy as np
 
 class LateralController:
     
-    def __init__(self):
-        pass
-    
+    def __init__(self, angle_min=np.deg2rad(-24), angle_max=np.deg2rad(24)):
+        self.angle_min = angle_min
+        self.angle_max = angle_max
+        
     def get_steering_angle(self, pose, waypoints):
         '''
         gets the steering angle for the car to follow the waypoints
@@ -15,3 +16,6 @@ class LateralController:
         '''
         
         raise NotImplementedError
+    
+    def _safety_bound(self, angle):
+        return np.clip(angle, self.angle_min, self.angle_max)
