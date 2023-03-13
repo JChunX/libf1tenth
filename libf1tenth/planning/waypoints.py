@@ -6,18 +6,28 @@ from scipy.ndimage import gaussian_filter
 
 
 class Waypoints:
+    '''
+    Waypoints
+    
+    waypoints are a set of x, y coordinates and velocities
+    upon initialization, splines are created for upsampling, yaw, and curvature
+    '''
              
     def __init__(self, x, y, velocity, is_periodic=False):
         self.t = np.arange(len(x))
         self.x = x.astype(np.double)
         self.y = y.astype(np.double)
         self.velocity = velocity
-        self.yaw = None
-        self.curvature = None
         self.is_periodic = is_periodic
         self._create_splines()
-        self._compute_yaw()
-        self._compute_curvature()
+        
+    @property
+    def yaw(self):
+        return self._compute_yaw()
+    
+    @property
+    def curvature(self):
+        return self._compute_curvature()
         
     @classmethod
     def from_csv(cls, path, is_periodic=False):
@@ -33,14 +43,19 @@ class Waypoints:
         return cls(arr[:,0], arr[:,1], arr[:,2])
     
     def _compute_yaw(self):
-        self.yaw = np.arctan2(self.cs_dy(self.t), self.cs_dx(self.t))
+        t = self.t
+        yaw = np.arctan2(self.cs_dy(t), self.cs_dx(t))
+        return yaw
         
     def _compute_curvature(self):
-        dx = self.cs_dx(self.t)
-        dy = self.cs_dy(self.t)
-        ddx = self.cs_ddx(self.t)
-        ddy = self.cs_ddy(self.t)
-        self.curvature = (dx*ddy - dy*ddx) / (dx**2 + dy**2)**(3/2)
+        t = self.t
+        dx = self.cs_dx(t)
+        dy = self.cs_dy(t)
+        ddx = self.cs_ddx(t)
+        ddy = self.cs_ddy(t)
+        
+        curvature = (dx*ddy - dy*ddx) / (dx**2 + dy**2) ** (3/2)
+        return curvature
 
     def _create_splines(self):
         t = self.t
@@ -55,10 +70,11 @@ class Waypoints:
         self.cs_dy = self.cs_y.derivative()
         self.cs_ddx = self.cs_dx.derivative()
         self.cs_ddy = self.cs_dy.derivative()
-            
-        self.s_velocity = interpolate.interp1d(t, self.velocity, kind='linear', fill_value='extrapolate')
         
-        self.s_yaw = interpolate.interp1d(t, self.yaw, kind='linear', fill_value='extrapolate')
+        self.s_velocity = interpolate.interp1d(t, 
+                            self.velocity, 
+                            kind='linear', 
+                            fill_value='extrapolate')
         
     def upsample(self, factor):
         # assert factor is an integer

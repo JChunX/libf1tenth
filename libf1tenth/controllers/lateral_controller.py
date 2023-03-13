@@ -7,6 +7,8 @@ class LateralController:
         self.angle_min = angle_min
         self.angle_max = angle_max
         
+    # TODO: get crosstrack error
+        
     def get_steering_angle(self, pose, waypoints):
         '''
         gets the steering angle for the car to follow the waypoints
