@@ -3,15 +3,30 @@ from libf1tenth.controllers import LateralController
 from libf1tenth.filter import DerivativeFilter
 
 class StanleyController(LateralController):
-    def __init__(self, K=1.0, Kd=0.1, wheelbase=0.58, lookahead=0.25):
+    def __init__(self, K=1.0, Kd=0.1, wheelbase=0.58, 
+                 lookahead_schedule=([3.0, 4.714, 6.429],
+                                     [0.25, 0.45, 0.9])):
         super().__init__()
         self.K = K
         self.Kd = Kd
         self.wheelbase = wheelbase
-        self.lookahead = lookahead
         self.crosstrack_error = 0.0
         self.d_crosstrack_error = DerivativeFilter()
         self.d_crosstrack_error.update(0.0)
+        
+        self.velocity = 0.0
+        self.lookahead_schedule = lookahead_schedule
+        
+    @property
+    def lookahead(self):
+        if self.velocity < self.lookahead_schedule[0][0]:
+            lookahead = self.lookahead_schedule[1][0]
+        elif self.velocity > self.lookahead_schedule[0][-1]:
+            lookahead = self.lookahead_schedule[1][-1]
+        else:
+            lookahead = np.interp(self.velocity, self.lookahead_schedule[0], self.lookahead_schedule[1])
+            
+        return lookahead
         
     def _find_waypoint_to_track(self, pose, steering, waypoints):
         position = pose[:2]
@@ -52,14 +67,14 @@ class StanleyController(LateralController):
         return steering_error
         
     def get_steering_angle(self, pose, waypoints, steering=0.0, velocity=0.0):
-        
+        self.velocity = velocity
         waypoint_idx, crosstrack_error = self._find_waypoint_to_track(pose, steering, waypoints)
         steering_error = self._get_steering_error(pose, steering, waypoints, waypoint_idx)
         self.d_crosstrack_error.update(crosstrack_error)
-        if velocity > 2.0:
+        if self.velocity > 2.0:
             angle = steering_error + np.arctan2(self.K * crosstrack_error + 
                                                 self.Kd * self.d_crosstrack_error.get_value(),
-                                                velocity)
+                                                self.velocity)
         else:
             angle = steering_error
         angle = self._safety_bound(angle)
