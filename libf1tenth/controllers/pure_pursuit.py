@@ -25,16 +25,6 @@ class PurePursuitController(LateralController):
         self.max_speed = max_speed
         self.prev_velocity = 0.0
         
-    def _waypoint_to_ego(self, pose, waypoint):
-        position = pose[:2]
-        orientation = pose[2]
-        # transform target waypoint to ego car frame
-        RCM = np.array([[np.cos(orientation), -np.sin(orientation)], 
-                        [np.sin(orientation), np.cos(orientation)]]).T
-        waypoint_ego = RCM @ (waypoint[:2] - position)
-        
-        return waypoint_ego
-        
     def _find_waypoint_to_track(self, pose, waypoints):
         """
         Find the closest waypoint to the car's current position

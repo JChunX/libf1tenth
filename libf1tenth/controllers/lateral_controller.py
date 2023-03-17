@@ -7,7 +7,15 @@ class LateralController:
         self.angle_min = angle_min
         self.angle_max = angle_max
         
-    # TODO: get crosstrack error
+    def _waypoint_to_ego(self, pose, waypoint):
+        position = pose[:2]
+        orientation = pose[2]
+        # transform target waypoint to ego car frame
+        RCM = np.array([[np.cos(orientation), -np.sin(orientation)], 
+                        [np.sin(orientation), np.cos(orientation)]]).T
+        waypoint_ego = RCM @ (waypoint[:2] - position)
+        
+        return waypoint_ego
         
     def get_steering_angle(self, pose, waypoints):
         '''
