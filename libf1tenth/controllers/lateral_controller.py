@@ -1,5 +1,5 @@
 import numpy as np
-
+from libf1tenth.planning.pose import Pose
 
 class LateralController:
     
@@ -8,14 +8,7 @@ class LateralController:
         self.angle_max = angle_max
         
     def _waypoint_to_ego(self, pose, waypoint):
-        position = pose[:2]
-        orientation = pose[2]
-        # transform target waypoint to ego car frame
-        RCM = np.array([[np.cos(orientation), -np.sin(orientation)], 
-                        [np.sin(orientation), np.cos(orientation)]]).T
-        waypoint_ego = RCM @ (waypoint[:2] - position)
-        
-        return waypoint_ego
+        return pose.global_point_to_pose_frame(waypoint[:2])
         
     def get_steering_angle(self, pose, waypoints):
         '''

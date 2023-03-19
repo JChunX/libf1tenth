@@ -29,7 +29,7 @@ class PurePursuitController(LateralController):
         """
         Find the closest waypoint to the car's current position
         
-        pose: [x, y, theta]
+        pose: Pose object
         waypoints: ndarray of shape (N, 7)
         
         steps:
@@ -37,8 +37,8 @@ class PurePursuitController(LateralController):
         2. if waypoints within lookahead distance, track the farthest waypoint within lookahead distance
         """
         
-        position = pose[:2]
-        heading = pose[2]
+        position = pose.position
+        heading = pose.theta
         
         distance_to_waypoints = np.linalg.norm(waypoints[:, :2] - position, axis=1)
         waypoint_indices_in_lookahead = np.where(distance_to_waypoints < self.lookahead)[0]
