@@ -3,7 +3,7 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 from scipy import interpolate
 from scipy.ndimage import gaussian_filter
-
+from libf1tenth.util import query_euclidean_distance
 
 class Waypoints:
     '''
@@ -109,6 +109,13 @@ class Waypoints:
         return np.hstack((self.x[:,None], 
                           self.y[:,None], 
                           self.velocity[:,None]))
+    
+    def __getitem__(self, idx):
+        return (self.x[idx], 
+                self.y[idx], 
+                self.velocity[idx], 
+                self.yaw[idx], 
+                self.curvature[idx])
         
     def __len__(self):
         return self.x.shape[0]

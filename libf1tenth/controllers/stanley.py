@@ -39,9 +39,10 @@ class StanleyController(LateralController):
         
         # find the closest waypoint to the front axle
         crosstrack_waypoint_idx = np.argmin(np.linalg.norm(waypoints[:, :2] - front_axle_position, axis=1))
-        front_axle_pose = Pose.from_position_theta(front_axle_position[0], 
-                                                   front_axle_position[1], 
-                                                   heading+steering)
+        front_axle_pose = Pose.from_position_theta(
+            front_axle_position[0], 
+            front_axle_position[1], 
+            heading+steering)
 
         # find the closest waypoint to the front axle augmented position
         crosstrack_waypoint_idx_augmented = np.argmin(np.linalg.norm(waypoints[:, :2] - front_axle_augmented, axis=1))

@@ -36,6 +36,8 @@ class Occupancies:
         self.x_origin = 0.0
         self.y_origin = self.y_size * self.resolution / 2.0 # units: m
         
+        self.lookahead_distance = self.resolution * self.x_size
+        
         self.layers = {}
         
     @property

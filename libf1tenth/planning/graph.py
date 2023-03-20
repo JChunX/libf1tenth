@@ -1,5 +1,7 @@
 import numpy as np
 from numba import njit
+from libf1tenth.util import query_euclidean_distance
+
 '''
 Graph components
 '''
@@ -22,6 +24,7 @@ class PlanGraph:
         self.end_pos = end_pos
         self.nodes = [PlanNode(start_pos[0], start_pos[1])]
         self.edges = []
+        
         self.adjacencies = {0: []}
         self.node_positions = np.array([start_pos]) # shape (n, 2)
         
@@ -53,14 +56,7 @@ class PlanGraph:
         Returns:
         - nearest_node_idx: index of nearest node in self.nodes
         '''
-        return np.argmin(PlanGraph.get_distance(self.node_positions, node.position))
-    
-    @staticmethod
-    @njit
-    def get_distance(positions, position):
-        diff = (positions - position).T
-        distance = np.linalg.norm(diff)
-        return distance
+        return np.argmin(query_euclidean_distance(self.node_positions, node.position))
     
 
 class PlanNode:

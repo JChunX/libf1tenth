@@ -4,6 +4,8 @@ import numpy as np
 from numba import njit
 
 from libf1tenth.planning.graph import PlanGraph, PlanNode
+from libf1tenth.planning.waypoints import Waypoints
+from libf1tenth.util import query_euclidean_distance
 
 
 class PathPlanner:
@@ -45,17 +47,20 @@ class RRTPlanner(PathPlanner):
         
         self.occ_grid_layer = occ_grid_layer
         
-    def plan(self, waypoints, occupancy_grid, start_pos):
+    def plan(self, waypoints, occupancy_grid, pose, start_pos=(0.,0.)):
         '''
         Plan a path through the waypoints given the occupancy grid.
         
         Args:
         - waypoints: Waypoints object
         - occupancy_grid: Occupancies object
-        - start_pos: starting position in the ego frame
+        - pose: Pose object, current pose in global frame
+        - start_pos: starting position in the ego frame, default is (0,0)
         '''
         self.waypoints = waypoints
         self.occupancy_grid = occupancy_grid
+        lookahead = self.occupancy_grid.lookahead_distance
+        current_waypoint_idx = np.argmin(query_euclidean_distance(waypoints[:,0:2], pose.position))
         
         self.G = PlanGraph(start_pos)
         
@@ -75,6 +80,14 @@ class RRTPlanner(PathPlanner):
             # check if goal is reached
             #if self._is_goal_reached(new_node):
             #    break
+            
+    def get_path(self):
+        '''
+        Get the planned path.
+        '''
+        #TODO: implement
+        
+        return None
     
     def _sample_free(self, layer='laser'):
         '''
@@ -88,9 +101,6 @@ class RRTPlanner(PathPlanner):
         - position: position of the sampled point in the odom frame
         '''
         occupancy = self.occupancy_grid.layers[layer]['occupancy']
-        #free = np.argwhere(occupancy == 0)
-        # sample a free point
-        #free_x_idx, free_y_idx = free[np.random.randint(len(free))]
         
         free_x_idx, free_y_idx = RRTPlanner._get_free_idx(occupancy)
         
@@ -98,6 +108,7 @@ class RRTPlanner(PathPlanner):
         position = np.array([x, y])
         
         return position
+    
     
     @staticmethod
     @njit
@@ -178,5 +189,46 @@ class RRTStarPlanner(RRTPlanner):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-    def plan(self, waypoints, occupancy_grid):
+    def plan(self, pose, waypoints, occupancy_grid, start_pos):
+        '''
+        Plan a path through the waypoints given the occupancy grid.
+        
+        Args:
+        - waypoints: Waypoints object
+        - occupancy_grid: Occupancies object
+        - start_pos: starting position in the ego frame
+        '''
+        self.waypoints = waypoints
+        self.occupancy_grid = occupancy_grid
+        
+        self.G = PlanGraph(start_pos)
+        
+        for _ in range(self.max_iterations):
+            # sample a point
+            position = self._sample_free()
+            new_node = PlanNode(position[0], position[1])
+            
+            nearest_node_id = self.G.get_nearest_node_idx(new_node)
+            nearest_node = self.G.get_node(nearest_node_id)
+            self._steer(new_node, nearest_node)
+            
+            if not self._check_collision(new_node, nearest_node):
+                self.G.add_node(new_node)
+                self.G.add_edge(nearest_node_id, new_node.id)
+            
+            # check if goal is reached
+            #if self._is_goal_reached(new_node):
+            #    break
+            
+    def dijkstra(self, start_node_id, goal_node_id):
+        '''
+        Dijkstra's algorithm.
+        
+        Args:
+        - start_node_id: id of the start node
+        - goal_node_id: id of the goal node
+        
+        Returns:
+        - path: list of node ids
+        '''
         pass
