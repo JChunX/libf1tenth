@@ -8,7 +8,7 @@ import yaml
 
 class Map:
     '''
-    wraps ros2 map into a class
+    Wraps ros2 map into a class
     '''
     def __init__(self):
         self.yaml_path = ''
@@ -26,7 +26,10 @@ class Map:
     
     def initialize(self, path):
         '''
-        initializes the map object from a yaml file
+        Initializes the map object from a yaml file
+        
+        Args:
+        - path: path to the yaml file
         '''
         # read yaml file into a dictionary
         params_dict = {}
@@ -47,7 +50,7 @@ class Map:
         
     def show_map(self):
         '''
-        shows the map
+        Shows the map
         '''
         plt.figure()
         print(self.image)
@@ -55,11 +58,13 @@ class Map:
         
     def show_coordinates(self, xs_cart, ys_cart, color=None, size=600):
         '''
-        shows the map with a coordinate marked in cartesian coordinates
-        xs: ndarray of x coordinates
-        ys: ndarray of y coordinates
-        color: ndarray of colors
-        size: size of the map in pixels
+        Shows the map with a coordinate marked in cartesian coordinates
+        
+        Args:
+        - xs: ndarray of x coordinates
+        - ys: ndarray of y coordinates
+        - color: ndarray of colors
+        - size: size of the map in pixels
         '''
         # if x, y are not iterables, convert them to lists
         if not hasattr(xs_cart, '__iter__'):
@@ -116,7 +121,11 @@ class Map:
         
     def cartesian_to_pixel(self, x, y):
         '''
-        converts cartesian coordinates to pixel coordinates
+        Converts cartesian coordinates to pixel coordinates
+        
+        Args:
+        - x: ndarray of x coordinates
+        - y: ndarray of y coordinates
         '''
         print(self.origin)
         x_pixel = np.round((x - self.origin[0]) / self.resolution).astype(int)

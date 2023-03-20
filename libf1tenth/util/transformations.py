@@ -7,6 +7,8 @@ def to_homogenous(x, y):
     x: np.ndarray of shape (n,)
     y: np.ndarray of shape (n,)
     '''
+    if np.isscalar(x) and np.isscalar(y):
+        return np.array([x,y,1]).reshape(3,1)
     
     return np.vstack((x.reshape(1, -1), 
                       y.reshape(1, -1), 

@@ -5,6 +5,15 @@ from scipy.spatial.transform import Rotation as R
 class Pose:
     
     def __init__(self, x, y, rotation, velocity=0.0):
+        '''
+        Pose represents a vehicle pose in the global frame.
+        
+        Args:
+        - x: x position in the global frame, positive x is forward
+        - y: y position in the global frame, positive y is left
+        - rotation: a scipy.spatial.transform.Rotation object representing the rotation of the vehicle
+        - velocity: the longitudinal velocity of the vehicle, positive velocity is forward
+        '''
         self.x = x
         self.y = y
         self.rotation = rotation
@@ -62,12 +71,32 @@ class Pose:
     
     def global_point_to_pose_frame(self, point):
         """
-        Transform a point from the global frame to the pose frame.
+        Transform a point from the global frame to this pose frame.
         
-        point: a 2D point in the global frame
+        Args:
+        - point: a ndarray of shape (2,) representing a 2D point in the global frame
+        
+        Returns:
+        - point_pose_frame: a ndarray of shape (2,) representing a 2D point in this pose frame
         """
         # pad point with 0 on z axis
         R_pose_to_global = self.rot_mat_2d.T
         point_pose_frame = R_pose_to_global @ (point - self.position)
         
         return point_pose_frame
+    
+    def pose_point_to_global_frame(self, point):
+        """
+        Transform a point from this pose frame to the global frame.
+        
+        Args:
+        - point: a ndarray of shape (2,) representing a 2D point in this pose frame
+        
+        Returns:
+        - point_global_frame: a ndarray of shape (2,) representing a 2D point in the global frame
+        """
+        R_pose_to_global = self.rot_mat_2d
+        point_global_frame = R_pose_to_global @ point + self.position
+        
+        return point_global_frame
+    
