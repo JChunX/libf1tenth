@@ -41,10 +41,27 @@ class PlanGraph:
     def get_node(self, id):
         return self.nodes[id]
         
-    def add_edge(self, a, b):
+    def add_edge(self, a, b, parent_id=None):
         self.edges.append((a, b))
         self.adjacencies[a].append(b)
         self.adjacencies[b].append(a)
+        if parent_id:
+            if parent_id == a:
+                parent_node = self.nodes[a]
+                child_node = self.nodes[b]
+            else:
+                parent_node = self.nodes[b]
+                child_node = self.nodes[a]
+            child_node.set_parent(parent_node)
+
+    def get_node_chain(self, end_node):
+        cur_node = end_node
+        node_chain = []
+        while(cur_node.parent is not None):
+            node_chain.append(cur_node)
+            cur_node = cur_node.parent
+        node_chain.append(cur_node)
+        return node_chain
     
     def get_nearest_node_idx(self, node):
         '''
