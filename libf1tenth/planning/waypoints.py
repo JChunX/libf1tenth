@@ -4,7 +4,6 @@ from scipy.interpolate import CubicSpline
 from scipy import interpolate
 from scipy.ndimage import gaussian_filter
 
-
 class Waypoints:
     '''
     Waypoints
@@ -102,13 +101,24 @@ class Waypoints:
     def to_csv(self, csv):
         df = pd.DataFrame({'x': self.x, 
                            'y': self.y, 
-                           'velocity': self.velocity})
+                           'velocity': self.velocity,
+                           'yaw': self.yaw,
+                           'curvature': self.curvature})
         df.to_csv(csv, index=False)
         
     def to_numpy(self):
         return np.hstack((self.x[:,None], 
                           self.y[:,None], 
-                          self.velocity[:,None]))
+                          self.velocity[:,None],
+                          self.yaw[:,None],
+                          self.curvature[:,None]))
+    
+    def __getitem__(self, idx):
+        return (self.x[idx], 
+                self.y[idx], 
+                self.velocity[idx], 
+                self.yaw[idx], 
+                self.curvature[idx])
         
     def __len__(self):
         return self.x.shape[0]

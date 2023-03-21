@@ -25,21 +25,11 @@ class PurePursuitController(LateralController):
         self.max_speed = max_speed
         self.prev_velocity = 0.0
         
-    def _waypoint_to_ego(self, pose, waypoint):
-        position = pose[:2]
-        orientation = pose[2]
-        # transform target waypoint to ego car frame
-        RCM = np.array([[np.cos(orientation), -np.sin(orientation)], 
-                        [np.sin(orientation), np.cos(orientation)]]).T
-        waypoint_ego = RCM @ (waypoint[:2] - position)
-        
-        return waypoint_ego
-        
     def _find_waypoint_to_track(self, pose, waypoints):
         """
         Find the closest waypoint to the car's current position
         
-        pose: [x, y, theta]
+        pose: Pose object
         waypoints: ndarray of shape (N, 7)
         
         steps:
@@ -47,8 +37,8 @@ class PurePursuitController(LateralController):
         2. if waypoints within lookahead distance, track the farthest waypoint within lookahead distance
         """
         
-        position = pose[:2]
-        heading = pose[2]
+        position = pose.position
+        heading = pose.theta
         
         distance_to_waypoints = np.linalg.norm(waypoints[:, :2] - position, axis=1)
         waypoint_indices_in_lookahead = np.where(distance_to_waypoints < self.lookahead)[0]

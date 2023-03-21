@@ -1,5 +1,5 @@
 import numpy as np
-
+from libf1tenth.planning.pose import Pose
 
 class LateralController:
     
@@ -7,7 +7,8 @@ class LateralController:
         self.angle_min = angle_min
         self.angle_max = angle_max
         
-    # TODO: get crosstrack error
+    def _waypoint_to_ego(self, pose, waypoint):
+        return pose.global_position_to_pose_frame(waypoint[:2])
         
     def get_steering_angle(self, pose, waypoints):
         '''
