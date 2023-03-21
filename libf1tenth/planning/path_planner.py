@@ -4,10 +4,8 @@ import numpy as np
 from numba import njit
 
 from libf1tenth.planning.graph import PlanGraph, PlanNode
-from libf1tenth.controllers import PurePursuitController, PDSpeedController
 
 from libf1tenth.planning.waypoints import Waypoints
-from libf1tenth.util import query_euclidean_distance
 
 
 class PathPlanner:
@@ -31,7 +29,7 @@ class RRTPlanner(PathPlanner):
     '''
     RRT planner
     '''
-    def __init__(self, search_radius, max_iterations, expansion_distance, goal_threshold, local_to_map, occ_grid_layer='laser'):
+    def __init__(self, search_radius, max_iterations, expansion_distance, goal_threshold, occ_grid_layer='laser'):
         '''
         search_radius: radius of the search circle
         max_iterations: maximum number of iterations
@@ -45,42 +43,41 @@ class RRTPlanner(PathPlanner):
         
         self.occupancy_grid = None
         self.waypoints = None
+        self.target_waypoint = None
         self.G = None
+        self.destination_node_id = None
+        self.is_goal_reached = False
         
         self.occ_grid_layer = occ_grid_layer
-        #############
-        self.lateral_controller = PurePursuitController(K, lookahead, alpha)
-        self.speed_controller = PDSpeedController(2.0, 0.1, buffer_size=10)
-        self.local_to_map = local_to_map
+        
         
     def plan(self, waypoints, occupancy_grid, pose, start_pos=(0.,0.)):
         '''
         Plan a path through the waypoints given the occupancy grid.
         
         Args:
-        - waypoints: Waypoints object
+        - waypoints: ndarray (n, 5) waypoints
         - occupancy_grid: Occupancies object
         - pose: Pose object, current pose in global frame
         - start_pos: starting position in the ego frame, default is (0,0)
         '''
+        
+
         self.waypoints = waypoints
-        ###########################
-        angle, waypoint_to_track = self.lateral_controller.get_steering_angle(pose, self.waypoints, self.target_velocity)
-
-        goal_x_map = waypoint_to_track[0]
-        goal_y_map = waypoint_to_track[1]
-
-        goal_xy_local = self.local_to_map @ np.array([goal_x_map, goal_y_map, 0, 1])
-        goal_x_local = goal_xy_local[0]
-        goal_y_local = goal_xy_local[1]
-########################
-
         self.occupancy_grid = occupancy_grid
         lookahead = self.occupancy_grid.lookahead_distance
-        current_waypoint_idx = np.argmin(query_euclidean_distance(waypoints[:,0:2], pose.position))
+        
+        candidate_goal_point = np.array([pose.x + lookahead * np.cos(pose.theta), 
+                                         pose.y + lookahead * np.sin(pose.theta)])
+        
+        # find waypoint closest to the candidate goal point
+        target_waypoint_idx = np.argmin(np.linalg.norm(self.waypoints[:, :2] - candidate_goal_point, axis=1))
+        self.target_waypoint = waypoints[target_waypoint_idx, :2]
+        self.target_waypoint = pose.global_position_to_pose_frame(self.target_waypoint)
         
         self.G = PlanGraph(start_pos)
         
+        self.is_goal_reached = False
         for _ in range(self.max_iterations):
             # sample a point
             position = self._sample_free()
@@ -95,25 +92,41 @@ class RRTPlanner(PathPlanner):
                 self.G.add_edge(nearest_node_id, new_node.id, parent_id=nearest_node_id)
             else:
                 continue
-##################
-            if self._is_goal_reached(new_node, goal_x_local, goal_y_local):
+            
+            if self._is_goal_reached(new_node):
+                self.destination_node_id = new_node.id
+                self.is_goal_reached = True
                 break
         
-        return self.G.get_node_chain(new_node)
+        return self.is_goal_reached
+            
+    def get_rrt_waypoints(self, pose, velocity=0.5):
+        '''
+        Get the planned waypoints in the global frame.
         
+        Args:
+        - pose: Pose object, current pose in global frame
+        '''
+        if not self.is_goal_reached:
+            return None
 
-            
-            # check if goal is reached
-            #if self._is_goal_reached(new_node):
-            #    break
-            
-    def get_path(self):
-        '''
-        Get the planned path.
-        '''
-        #TODO: implement
+        destination_node = self.G.nodes[self.destination_node_id]
+        positions_to_track = destination_node.position
         
-        return None
+        cur_node = destination_node
+        while cur_node.parent is not None:
+            cur_node = self.G.nodes[cur_node.parent.id]
+            positions_to_track = np.vstack((cur_node.position, positions_to_track)) # shape (n, 2)
+        
+        # convert to global frame
+        positions_to_track = pose.pose_position_to_global_frame(positions_to_track.T).T
+        
+        waypoints_to_track = np.hstack((positions_to_track, 
+                                        velocity * np.ones((positions_to_track.shape[0], 1))))
+        
+        waypoints = Waypoints.from_numpy(waypoints_to_track).smooth(3).upsample(100).smooth(50)
+        
+        return waypoints
     
     def _sample_free(self, layer='laser'):
         '''
@@ -143,7 +156,7 @@ class RRTPlanner(PathPlanner):
         free_x_idx, free_y_idx = free[np.random.randint(len(free))]
         return free_x_idx, free_y_idx
     
-    def _is_goal_reached(self, node, goal_x, goal_y):
+    def _is_goal_reached(self, node):
         '''
         Check if the goal is reached.
         
@@ -153,12 +166,8 @@ class RRTPlanner(PathPlanner):
         Returns:
         - is_goal_reached: boolean
         '''
-        # TODO: implement this method
-        ###################
-        if np.linalg.norm(np.array([node.x - goal_x, node.y - goal_y])) < self.goal_threshold:
-            return True
-    
-        return False
+        goal_x, goal_y = self.target_waypoint
+        return np.linalg.norm(np.array([node.x - goal_x, node.y - goal_y])) < self.goal_threshold
     
     def _steer(self, sampled_node, nearest_node):
         '''
@@ -181,15 +190,21 @@ class RRTPlanner(PathPlanner):
     @staticmethod
     @njit
     def _steer_helper(nearest_node_x, nearest_node_y, sampled_node_x, sampled_node_y, expansion_distance):
-        dx = nearest_node_x - sampled_node_x
-        dy = nearest_node_y - sampled_node_y
+        '''
+        dirn = np.array(randvex) - np.array(nearvex)
+        length = np.linalg.norm(dirn)
+        dirn = (dirn / length) * min (stepSize, length)
 
-        ang = np.arctan2(dy, dx)
-        dx_new = expansion_distance * np.cos(ang)
-        dy_new = expansion_distance * np.sin(ang)
-
-        sampled_node_x = dx_new + nearest_node_x
-        sampled_node_y = dy_new + nearest_node_y
+        newvex = (nearvex[0]+dirn[0], nearvex[1]+dirn[1])
+        return newvex
+        '''
+        
+        dirn = np.array([sampled_node_x, sampled_node_y]) - np.array([nearest_node_x, nearest_node_y])
+        length = np.linalg.norm(dirn)
+        dirn = (dirn / length) * min (expansion_distance, length)
+        
+        sampled_node_x = nearest_node_x + dirn[0]
+        sampled_node_y = nearest_node_y + dirn[1]
         
         return sampled_node_x, sampled_node_y
         

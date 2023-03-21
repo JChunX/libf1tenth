@@ -166,7 +166,7 @@ class Occupancies:
                                                     occupancy, 
                                                     iterations=iterations).astype(float)
         
-    def is_collision_free(self, layer_name, x_pc, y_pc):
+    def is_collision(self, layer_name, x_pc, y_pc):
         '''
         Determines if the single given pointcloud location is collision free
         
@@ -176,11 +176,11 @@ class Occupancies:
         - y_pc: y position of a single point in odom frame
         
         Returns:
-        - is_collision_free: True if the point is collision free
+        - is_collision: False if the point is collision free
         '''
         x_idx, y_idx = self.pc_to_grid_indices(x_pc, y_pc)
-        is_collision_free = self.layers[layer_name]['occupancy'][x_idx, y_idx] == 0
-        return is_collision_free
+        is_collision = not self.layers[layer_name]['occupancy'][x_idx, y_idx] == 0
+        return is_collision
         
     def check_line_collision(self, layer_name, x1, y1, x2, y2):
         '''
@@ -194,7 +194,7 @@ class Occupancies:
         - y2: y position of the second point in odom frame
         
         Returns:
-        - is_collision_free: True if the line segment is collision free 
+        - is_collision: False if the line segment is collision free 
         '''
         
         occ_grid = self.layers[layer_name]['occupancy']
@@ -205,8 +205,9 @@ class Occupancies:
         # convert line segment to grid indices using Bresenham's algorithm
         x_indices, y_indices = bresenham(start_x_idx, start_y_idx, end_x_idx, end_y_idx)
         # check if any of the line segment points are occupied
-        is_collision_free = np.all(occ_grid[x_indices, y_indices] == 0)
-        return is_collision_free
+        is_collision = not np.all(occ_grid[x_indices, y_indices] == 0)
+
+        return is_collision
         
     def to_msg(self, layer_name, frame_id):
         '''

@@ -1,6 +1,5 @@
 import numpy as np
 from numba import njit
-from libf1tenth.util import query_euclidean_distance
 
 '''
 Graph components
@@ -73,7 +72,7 @@ class PlanGraph:
         Returns:
         - nearest_node_idx: index of nearest node in self.nodes
         '''
-        return np.argmin(query_euclidean_distance(self.node_positions, node.position))
+        return np.argmin(np.linalg.norm(self.node_positions - node.position, axis=1))
     
 
 class PlanNode:
@@ -84,7 +83,7 @@ class PlanNode:
     def __init__(self, x, y, parent: 'PlanNode'=None):
         self.x = x
         self.y = y
-        self._parent = parent
+        self.parent = parent
         self.id = None
         self.cost = 0.0
 

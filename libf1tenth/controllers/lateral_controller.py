@@ -8,7 +8,7 @@ class LateralController:
         self.angle_max = angle_max
         
     def _waypoint_to_ego(self, pose, waypoint):
-        return pose.global_point_to_pose_frame(waypoint[:2])
+        return pose.global_position_to_pose_frame(waypoint[:2])
         
     def get_steering_angle(self, pose, waypoints):
         '''

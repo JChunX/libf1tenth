@@ -1,10 +1,10 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
-
+from libf1tenth.util.transformations import coordinate_transform_ab, coordinate_transform_ba
 
 class Pose:
     
-    def __init__(self, x, y, rotation, velocity=0.0):
+    def __init__(self, x, y, rotation=0.0, velocity=0.0):
         '''
         Pose represents a vehicle pose in the global frame.
         
@@ -69,34 +69,47 @@ class Pose:
     def as_array(self):
         return np.array([self.x, self.y, self.theta, self.velocity])
     
-    def global_point_to_pose_frame(self, point):
+    def global_position_to_pose_frame(self, positions):
         """
-        Transform a point from the global frame to this pose frame.
+        Transform positions from the global frame to this pose frame.
         
         Args:
-        - point: a ndarray of shape (2,) representing a 2D point in the global frame
+        - positions: a ndarray of shape (2,n) representing 2D positions in the global frame
         
         Returns:
         - point_pose_frame: a ndarray of shape (2,) representing a 2D point in this pose frame
         """
-        # pad point with 0 on z axis
-        R_pose_to_global = self.rot_mat_2d.T
-        point_pose_frame = R_pose_to_global @ (point - self.position)
+
+        # R_pose_to_global = self.rot_mat_2d.T
+        # R_pose_to_global @ (point - self.position)
         
+        if len(positions.shape) == 1:
+            positions = positions.reshape(2,1)
+            
+        point_pose_frame = coordinate_transform_ab(positions, self.theta, self.position.reshape(2,1))
+        
+        if point_pose_frame.shape[1] == 1:
+            point_pose_frame = point_pose_frame.reshape(2)
         return point_pose_frame
     
-    def pose_point_to_global_frame(self, point):
+    def pose_position_to_global_frame(self, positions):
         """
-        Transform a point from this pose frame to the global frame.
+        Transform positions from this pose frame to the global frame.
         
         Args:
-        - point: a ndarray of shape (2,) representing a 2D point in this pose frame
+        - positions: a ndarray of shape (2,n) representing a 2D point in this pose frame
         
         Returns:
-        - point_global_frame: a ndarray of shape (2,) representing a 2D point in the global frame
+        - point_global_frame: a ndarray of shape (2,n) representing 2D positions in the global frame
         """
-        R_pose_to_global = self.rot_mat_2d
-        point_global_frame = R_pose_to_global @ point + self.position
+        #R_pose_to_global = self.rot_mat_2d
+        #point_global_frame = R_pose_to_global @ point + self.position
+        if len(positions.shape) == 1:
+            positions = positions.reshape(2,1)
+            
+        point_global_frame = coordinate_transform_ba(positions, self.theta, self.position.reshape(2,1))
         
+        if point_global_frame.shape[1] == 1:
+            point_global_frame = point_global_frame.reshape(2)
         return point_global_frame
     
