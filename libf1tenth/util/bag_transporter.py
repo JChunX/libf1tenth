@@ -17,6 +17,8 @@ def parse_args():
 
     parser.add_argument('-u', '--user', dest='username', default='jasonx',
                         help='user name of the host machine')
+    
+    parser.add_argument('-i', '--ip', dest='ip', default='')
 
     # Parse the arguments
     return parser.parse_args()
@@ -29,7 +31,10 @@ def main():
         # upon pressing ctrl+c, stop the bag recording and scp to host.
         print("stopping bag recording")
         # get the environment variable $SSH_CLIENT
-        client_ip = os.environ['SSH_CLIENT'].split()[0]
+        if args.ip:
+            client_ip = args.ip
+        else:
+            client_ip = os.environ['SSH_CLIENT'].split()[0]
         # destination is the save_path but strip the last directory
         destination = save_path.rsplit('/', 1)[0]
         # scp the bag file to the host 
