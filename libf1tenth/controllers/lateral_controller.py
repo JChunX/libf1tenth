@@ -3,7 +3,7 @@ from libf1tenth.planning.pose import Pose
 
 class LateralController:
     
-    def __init__(self, angle_min=np.deg2rad(-24), angle_max=np.deg2rad(24)):
+    def __init__(self, angle_min=np.deg2rad(-35), angle_max=np.deg2rad(35)):
         self.angle_min = angle_min
         self.angle_max = angle_max
         

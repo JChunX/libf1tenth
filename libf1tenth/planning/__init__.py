@@ -4,4 +4,4 @@ from .pose import Pose
 from .path_planner import PathPlanner, RRTPlanner, RRTStarPlanner
 from .graph import PlanNode, PlanGraph
 from .samplers import UniformSampler, GaussianSampler
-from .frenet import Frenet
+from .frenet import FrenetFrame
