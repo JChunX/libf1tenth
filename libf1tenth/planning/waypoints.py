@@ -44,6 +44,7 @@ class Waypoints:
     def _compute_yaw(self):
         t = self.t
         yaw = np.arctan2(self.cs_dy(t), self.cs_dx(t))
+        yaw = np.unwrap(yaw)
         return yaw
         
     def _compute_curvature(self):
