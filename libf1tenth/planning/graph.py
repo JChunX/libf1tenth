@@ -21,11 +21,12 @@ class PlanGraph:
     def __init__(self, start_pos, end_pos=None):
         self.start_pos = start_pos
         self.end_pos = end_pos
-        self.nodes = [PlanNode(start_pos[0], start_pos[1])]
+        self.nodes = []
         self.edges = []
+        self.adjacencies = {}
+        self.node_positions = None # shape (n, 2)
         
-        self.adjacencies = {0: []}
-        self.node_positions = np.array([start_pos]) # shape (n, 2)
+        self.add_node(PlanNode(start_pos[0], start_pos[1]))
         
     def __repr__(self):
         return f'PlanGraph with {len(self.nodes)} nodes and {len(self.edges)} edges'
@@ -35,16 +36,19 @@ class PlanGraph:
         self.nodes.append(node)
         node.id = len(self.nodes) - 1
         self.adjacencies[node.id] = []
-        self.node_positions = np.vstack((self.node_positions, node.position))
+        if self.node_positions is not None:
+            self.node_positions = np.vstack((self.node_positions, node.position))
+        else:
+            self.node_positions = node.position.reshape(1, 2)
         
     def get_node(self, id):
         return self.nodes[id]
         
-    def add_edge(self, a, b, parent_id=None):
+    def add_edge(self, a, b, parent_id=None, add_cost=False, cost=None):
         self.edges.append((a, b))
         self.adjacencies[a].append(b)
         self.adjacencies[b].append(a)
-        if parent_id:
+        if parent_id is not None:
             if parent_id == a:
                 parent_node = self.nodes[a]
                 child_node = self.nodes[b]
@@ -52,6 +56,16 @@ class PlanGraph:
                 parent_node = self.nodes[b]
                 child_node = self.nodes[a]
             child_node.set_parent(parent_node)
+            if add_cost:
+                if cost:
+                    child_node.cost = cost
+                else:
+                    child_node.cost = (parent_node.cost
+                                   + np.linalg.norm(
+                                       parent_node.position
+                                       - child_node.position
+                                       )
+                                   )
 
     def get_node_chain(self, end_node):
         cur_node = end_node
@@ -61,6 +75,24 @@ class PlanGraph:
             cur_node = cur_node.parent
         node_chain.append(cur_node)
         return node_chain
+    
+    def get_near_node_ids(self, node, radius, max_num=50):
+        '''
+        Returns a list of the (num) nearest nodes to the given node
+        
+        Args:
+        - node: PlanNode object
+        - num: number of nearest nodes to return
+        
+        Returns:
+        - nearest_nodes: list of PlanNode objects
+        '''
+        
+        distances = np.linalg.norm(self.node_positions - node.position, axis=1)
+        nearest_node_ids = np.argwhere(distances < radius).flatten()
+        nearest_node_ids = nearest_node_ids[np.argsort(distances[nearest_node_ids])][:max_num]
+        
+        return nearest_node_ids
     
     def get_nearest_node_idx(self, node):
         '''

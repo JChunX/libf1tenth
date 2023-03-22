@@ -4,7 +4,6 @@ import numpy as np
 from numba import njit
 
 from libf1tenth.planning.graph import PlanGraph, PlanNode
-
 from libf1tenth.planning.waypoints import Waypoints
 
 
@@ -100,7 +99,7 @@ class RRTPlanner(PathPlanner):
         
         return self.is_goal_reached
             
-    def get_rrt_waypoints(self, pose, velocity=0.5):
+    def get_rrt_waypoints(self, pose, velocity=0.5, logger=None):
         '''
         Get the planned waypoints in the global frame.
         
@@ -118,13 +117,16 @@ class RRTPlanner(PathPlanner):
             cur_node = self.G.nodes[cur_node.parent.id]
             positions_to_track = np.vstack((cur_node.position, positions_to_track)) # shape (n, 2)
         
+        if len(positions_to_track.shape) == 1:
+            return None
+        
         # convert to global frame
         positions_to_track = pose.pose_position_to_global_frame(positions_to_track.T).T
         
         waypoints_to_track = np.hstack((positions_to_track, 
                                         velocity * np.ones((positions_to_track.shape[0], 1))))
         
-        waypoints = Waypoints.from_numpy(waypoints_to_track).smooth(3).upsample(100).smooth(50)
+        waypoints = Waypoints.from_numpy(waypoints_to_track).upsample(50)#.smooth(1)
         
         return waypoints
     
@@ -147,7 +149,6 @@ class RRTPlanner(PathPlanner):
         position = np.array([x, y])
         
         return position
-    
     
     @staticmethod
     @njit
@@ -234,21 +235,33 @@ class RRTStarPlanner(RRTPlanner):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-    def plan(self, pose, waypoints, occupancy_grid, start_pos):
+    def plan(self, waypoints, occupancy_grid, pose, start_pos=(0.5,0.)):
         '''
         Plan a path through the waypoints given the occupancy grid.
         
         Args:
-        - waypoints: Waypoints object
+        - waypoints: ndarray (n, 5) waypoints
         - occupancy_grid: Occupancies object
-        - start_pos: starting position in the ego frame
+        - pose: Pose object, current pose in global frame
+        - start_pos: starting position in the ego frame, default is (0,0)
         '''
+        
+
         self.waypoints = waypoints
         self.occupancy_grid = occupancy_grid
+        lookahead = self.occupancy_grid.lookahead_distance
+        
+        candidate_goal_point = np.array([pose.x + lookahead * np.cos(pose.theta), 
+                                         pose.y + lookahead * np.sin(pose.theta)])
+        
+        # find waypoint closest to the candidate goal point
+        target_waypoint_idx = np.argmin(np.linalg.norm(self.waypoints[:, :2] - candidate_goal_point, axis=1))
+        self.target_waypoint = waypoints[target_waypoint_idx, :2]
+        self.target_waypoint = pose.global_position_to_pose_frame(self.target_waypoint)
         
         self.G = PlanGraph(start_pos)
-        
-        for _ in range(self.max_iterations):
+        self.is_goal_reached = False
+        for i in range(self.max_iterations):
             # sample a point
             position = self._sample_free()
             new_node = PlanNode(position[0], position[1])
@@ -259,11 +272,27 @@ class RRTStarPlanner(RRTPlanner):
             
             if not self._check_collision(new_node, nearest_node):
                 self.G.add_node(new_node)
-                self.G.add_edge(nearest_node_id, new_node.id)
+                self.G.add_edge(nearest_node_id, new_node.id, parent_id=nearest_node_id, add_cost=True)
+                
+                # rewire
+                near_node_ids = self.G.get_near_node_ids(new_node, self.search_radius)
+                for near_node_id in near_node_ids:
+                    near_node = self.G.get_node(near_node_id)
+                    if not self._check_collision(new_node, near_node):
+                        # check if the cost of the new path is less than the cost of the old path
+                        new_cost = near_node.cost + np.linalg.norm(new_node.position - near_node.position)
+                        
+                        if new_cost < near_node.cost:
+                            self.G.add_edge(nearest_node_id, near_node_id, parent_id=nearest_node_id, add_cost=True)
+            else:
+                continue
             
-            # check if goal is reached
-            #if self._is_goal_reached(new_node):
-            #    break
+            if self._is_goal_reached(new_node) and i > self.max_iterations // 2:
+                self.destination_node_id = new_node.id
+                self.is_goal_reached = True
+                break
+        
+        return self.is_goal_reached
             
     def dijkstra(self, start_node_id, goal_node_id):
         '''
