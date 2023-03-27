@@ -46,6 +46,9 @@ class Map:
         
         # read image
         self.image = cv2.imread(self.image_path, -1)#cv2.IMREAD_GRAYSCALE)
+        # if image has > 1 channel, convert to grayscale
+        if len(self.image.shape) > 2:
+            self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
         self.height, self.width = self.image.shape
         
     def show_map(self):
