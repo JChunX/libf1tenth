@@ -8,6 +8,12 @@ class PDSpeedController(LongitudinalController):
         self.k_d = k_d
         self.error_derivative_filter = DerivativeFilter(buffer_size=buffer_size)
         self.error_filter = MovingAverageFilter(buffer_size=buffer_size)
+        
+    def augment_k(self, error):
+        if error < 0: # if slowing down..
+            return 1.2, 0.3 # 1.0 + 0.2
+        else:
+            return self.k_p, self.k_d
 
     def control(self, speed, angle, target_speed):
         
@@ -17,7 +23,8 @@ class PDSpeedController(LongitudinalController):
         self.error_filter.update(cur_error)
         cur_error = self.error_filter.get_value()
         
-        speed += self.k_p * cur_error + self.k_d * cur_error_derivative
+        k_p, k_d = self.augment_k(cur_error)
+        speed += k_p * cur_error + k_d * cur_error_derivative
         
         if not self.error_derivative_filter.is_ready():
             return 0.0

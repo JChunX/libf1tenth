@@ -235,7 +235,7 @@ class RRTStarPlanner(RRTPlanner):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-    def plan(self, waypoints, occupancy_grid, pose, start_pos=(0.5,0.)):
+    def plan(self, waypoints, occupancy_grid, pose, start_pos=(0.,0.)):
         '''
         Plan a path through the waypoints given the occupancy grid.
         
