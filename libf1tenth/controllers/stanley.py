@@ -65,10 +65,11 @@ class StanleyController(LateralController):
         self.crosstrack_error = crosstrack_error
     
     def _find_steering_error(self, heading, steering, waypoints, waypoint_idx):
-        steering_heading = heading + steering
+        #steering_heading = heading + steering
         waypoint_heading = waypoints[waypoint_idx, 3]
         
-        steering_error = waypoint_heading - steering_heading
+        #steering_error = waypoint_heading - steering_heading
+        steering_error = waypoint_heading - heading # TODO: verify this is correct
         self.steering_error = np.arctan2(np.sin(steering_error), np.cos(steering_error)) # normalize to [-pi, pi]
         
     def _find_curvature_augmentation_coefficient(self):
@@ -110,11 +111,6 @@ class StanleyController(LateralController):
         K, Kd = self.augment_K()
         
         if self.velocity > 2.0:
-            # angle = K_curve * self.steering_error + 4.0 * np.arctan2(
-            #     self.K * self.crosstrack_error + 
-            #     self.Kd * self.d_crosstrack_error,
-            #     self.velocity
-            # )
             arctan_term = np.arctan2(self.crosstrack_error, self.velocity)
             d_arctan_term = np.arctan2(self.d_crosstrack_error, self.velocity)
             angle = (K_curve * self.steering_error
