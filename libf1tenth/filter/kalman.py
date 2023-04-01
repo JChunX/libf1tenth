@@ -24,6 +24,8 @@ class KalmanFilter(Filter):
         self.A = A
         self.C = C
         
+        self.dims = self.Sig.shape[0]
+        
     def _predict(self):
         mu_kp1_k = self.A @ self.mu
         Sig_kp1_k = self.A @ self.Sig @ self.A.T + self.R
@@ -38,11 +40,15 @@ class KalmanFilter(Filter):
     def _kalman_update(self, mu_kp1_k, Sig_kp1_k, K, y_kp1):
         mu_kp1 = mu_kp1_k + K * (y_kp1 - self.C @ mu_kp1_k)
         
-        I_m_KC = (np.eye(2) - K @ self.C)
+        I_m_KC = (np.eye(self.dims) - K @ self.C)
+        
         Sig_kp1 = I_m_KC @ Sig_kp1_k @ I_m_KC.T + K @ self.Q @ K.T
         return mu_kp1, Sig_kp1
         
     def update(self, y_kp1):
+        # is y is scalar, convert to array
+        if isinstance(y_kp1, (float, int)):
+            y_kp1 = np.array([y_kp1]).reshape((1,1))
         mu_kp1_k, Sig_kp1_k = self._predict()
         K = self._kalman_gain(Sig_kp1_k)
         self.mu, self.Sig = self._kalman_update(mu_kp1_k, Sig_kp1_k, K, y_kp1)
