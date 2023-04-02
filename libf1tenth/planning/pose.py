@@ -77,7 +77,7 @@ class Pose:
         - positions: a ndarray of shape (2,n) representing 2D positions in the global frame
         
         Returns:
-        - point_pose_frame: a ndarray of shape (2,) representing a 2D point in this pose frame
+        - point_pose_frame: a ndarray of shape (2,n) representing a 2D point in this pose frame
         """
 
         # R_pose_to_global = self.rot_mat_2d.T

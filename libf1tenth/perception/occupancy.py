@@ -172,14 +172,18 @@ class Occupancies:
         
         Args:
         - layer_name: name of the layer to check
-        - x_pc: x position of a single point in odom frame
-        - y_pc: y position of a single point in odom frame
+        - x_pc: x position of point(s) in odom frame
+        - y_pc: y position of point(s) in odom frame
         
         Returns:
         - is_collision: False if the point is collision free
         '''
         x_idx, y_idx = self.pc_to_grid_indices(x_pc, y_pc)
-        is_collision = not self.layers[layer_name]['occupancy'][x_idx, y_idx] == 0
+        is_collision = False
+        if np.isscalar(x_pc):
+            is_collision = self.layers[layer_name]['occupancy'][x_idx, y_idx] != 0
+        else:
+            is_collision = np.any(self.layers[layer_name]['occupancy'][x_idx, y_idx] != 0)
         return is_collision
         
     def check_line_collision(self, layer_name, x1, y1, x2, y2):

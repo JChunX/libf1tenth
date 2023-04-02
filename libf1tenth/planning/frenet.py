@@ -20,13 +20,13 @@ class FrenetFrame:
         
     def frenet_to_cartesian(self, s, d):
         '''
-        converts points in frenet frame to cartesian frame
+        Converts points in frenet frame to cartesian frame
         
-        args:
+        Args:
         - s: path progress, ndarray or float
         - d: lateral offset, ndarray or float
         
-        returns:
+        Returns:
         - x: x coordinate, ndarray or float
         - y: y coordinate, ndarray or float
         '''
@@ -37,13 +37,13 @@ class FrenetFrame:
     
     def cartesian_to_frenet(self, x, y):
         '''
-        converts points in cartesian frame to frenet frame
+        Converts points in cartesian frame to frenet frame
         
-        args:
+        Args:
         - x: x coordinate, ndarray or float
         - y: y coordinate, ndarray or float
         
-        returns:
+        Returns:
         - s: path progress, ndarray or float
         - d: lateral offset, ndarray or float
         '''
