@@ -49,8 +49,18 @@ class FrenetPlanner(PathPlanner):
                                   t_min=0.5, t_max=1.5, t_step=0.1,
                                   num_v_steps=5, v_step=0.2):
         '''
-        initializes the frenet planner with waypoints and a frenet frame
-        waypoints: Waypoints object
+        Initializes the frenet planner with waypoints and a frenet frame
+        
+        Args:
+        - waypoints: (n, 5) array of waypoints [x, y, velocity, yaw, curvature]
+        - left_lim: left limit of the track in meters
+        - right_lim: right limit of the track in meters
+        - lane_width: width of a lane in meters
+        - t_min: minimum time to reach the goal
+        - t_max: maximum time to reach the goal
+        - t_step: time step for discretizing the goal
+        - num_v_steps: number of velocity steps to consider
+        - v_step: velocity step size
         '''
         self.waypoints = waypoints
         self.frenet_frame = FrenetFrame(waypoints)
@@ -148,8 +158,7 @@ class FrenetPlanner(PathPlanner):
                 continue
             
             else: 
-                waypoints = Waypoints.from_numpy(np.vstack((x,y,velocity)).T)
-                valid_paths.append(waypoints)
+                valid_paths.append(np.vstack((x,y,velocity)).T)
                 
         return valid_paths
 

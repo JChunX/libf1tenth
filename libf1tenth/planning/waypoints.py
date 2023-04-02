@@ -112,7 +112,7 @@ class Waypoints:
                           self.y[:,None], 
                           self.velocity[:,None],
                           self.yaw[:,None],
-                          self.curvature[:,None]))
+                          self.curvature[:,None])) # (N, 5)
     
     def __getitem__(self, idx):
         return (self.x[idx], 
