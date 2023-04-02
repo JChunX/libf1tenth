@@ -92,12 +92,12 @@ class FrenetPlanner(PathPlanner):
         min_cost = np.inf
         best_path = None
         for path in valid_paths:
-            cost = path.cf
+            waypoints, cost = path
             if cost < min_cost:
                 min_cost = cost
-                best_path = path
+                best_path = waypoints
 
-        return best_path
+        return best_path, valid_paths
     
     def _generate_frenet_paths(self, s, s_dot, s_ddot, d, d_dot, d_ddot):
         
@@ -158,7 +158,8 @@ class FrenetPlanner(PathPlanner):
                 continue
             
             else: 
-                valid_paths.append(np.vstack((x,y,velocity)).T)
+                waypoints = Waypoints.from_numpy(np.vstack((x,y,velocity)).T)
+                valid_paths.append((waypoints, frenet_path.cf))
                 
         return valid_paths
 
