@@ -11,7 +11,7 @@ class PDSpeedController(LongitudinalController):
         
     def augment_k(self, error):
         if error < 0: # if slowing down..
-            return 1.2, 0.3 # 1.0 + 0.2
+            return 1.4, 0.3 # 1.2 + 0.3
         else:
             return self.k_p, self.k_d
 
