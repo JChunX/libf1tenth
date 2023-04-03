@@ -5,8 +5,8 @@ from libf1tenth.planning.pose import Pose
 
 class StanleyController(LateralController):
     def __init__(self, K=1.0, Kd=0.1, wheelbase=0.58, 
-                 lookahead_schedule=([3.0, 4.0, 5.0],
-                                     [0.45, 0.88, 0.88])): # .88 .65, .70
+                 lookahead_schedule=([3.0, 4.0, 7.0],
+                                     [0.8, 0.98, 1.9])): # .7 .97, 2.1
         super().__init__()
         self.K = K
         self.Kd = Kd
@@ -73,7 +73,7 @@ class StanleyController(LateralController):
         
     def _find_curvature_augmentation_coefficient(self):
         curvature = self.curvature
-        if self.velocity > 4.8 or curvature < 0.02: 
+        if self.velocity > 4.2 or curvature < 0.02: 
             K_curve = 1.0
         else:
             # clip curvature to [0, 0.5]
@@ -89,10 +89,12 @@ class StanleyController(LateralController):
     
     def augment_K(self):
         curvature = self.curvature
+        if self.velocity > 5.0:
+            return self.K / 5.5, self.Kd / 1.8
+        if self.velocity > 4.1:
+            return self.K / 6, self.Kd / 1.8 #17,1.8
         if curvature < 0.02:
-            return self.K / 3, self.Kd / 3
-        if self.velocity > 4.8:
-            return self.K / 1.2, self.Kd / 1.2
+            return self.K / 6, self.Kd / 1.5 # kp3, kd1.2
         else:
             return self.K, self.Kd
     
