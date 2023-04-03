@@ -9,45 +9,70 @@ from libf1tenth.planning.polynomial import QuarticPolynomial, \
 # cost weights
 K_J = 0.1
 K_T = 0.1
-K_D = 1.0
+K_D = 10.0
 K_LAT = 1.0
 K_LON = 1.0
                                            
 class FrenetPath:
 
-    def __init__(self):
+    def __init__(self, frenet_frame, t, s, d, s_d, d_d, s_dd, d_dd, s_ddd, d_ddd):
         '''
         FrenetPath is a path in the Frenet frame.
         '''
-        self.t = [] # time
+        self.frenet_frame = frenet_frame
+        self.t = t # time
         
-        self.d = [] # lateral offset
-        self.d_d = [] # lateral velocity
-        self.d_dd = [] # lateral acceleration
-        self.d_ddd = [] # lateral jerk
+        self.d = d # lateral offset
+        self.d_d = d_d # lateral velocity
+        self.d_dd = d_dd # lateral acceleration
+        self.d_ddd = d_ddd # lateral jerk
         
-        self.s = [] # path progress
-        self.s_d = [] # path velocity
-        self.s_dd = [] # path acceleration
-        self.s_ddd = [] # path jerk
+        self.s = s # path progress
+        self.s_d = s_d # path velocity
+        self.s_dd = s_dd # path acceleration
+        self.s_ddd = s_ddd # path jerk
         
         self.cd = 0.0 # cost of lateral offset
         self.cv = 0.0 # cost of path velocity
         self.cf = 0.0 # overall cost
-
-        self.x = [] # x coordinate
-        self.y = [] # y coordinate
-        self.yaw = [] # yaw angle
-        self.ds = [] # distance between points
-        self.c = [] # curvature
+        
+        self.x, self.y = self.frenet_frame.frenet_to_cartesian(self.s, self.d)
+        
+    def is_collision(self, pose, occupancy_grid):
+        '''
+        Checks if the path is in collision with the occupancy grid.
+        
+        Args:
+        - pose: Pose object
+        - occupancy_grid: Occupancies object
+        
+        Returns:
+        - True if the path is in collision, False otherwise
+        '''
+        
+        positions = np.vstack((self.x, self.y))
+        positions_local = pose.global_position_to_pose_frame(positions)
+            
+        is_collision = occupancy_grid.is_collision(
+            'laser', positions_local[0,:], positions_local[1,:])
+        
+        return is_collision
+    
+    def to_waypoints(self):
+        '''
+        Returns a Waypoints object of the path.
+        '''
+        waypoints = Waypoints.from_numpy(np.vstack((self.x,self.y,self.s_d)).T)
+        return waypoints
+        
 
 class FrenetPlanner(PathPlanner):
     '''
     FrenetPlanner plans a path using the Frenet frame while avoiding obstacles.
     '''
-    def __init__(self, waypoints, left_lim=1.0, right_lim=1.0, lane_width=0.25, 
-                                  t_min=0.5, t_max=1.5, t_step=0.1,
-                                  num_v_steps=5, v_step=0.2):
+    def __init__(self, waypoints, left_lim=0.8, right_lim=0.8, lane_width=0.2, 
+                                  t_min=4.0, t_max=4.5, t_step=0.25, dt=0.01,
+                                  num_v_steps=1, v_step=0.5):
         '''
         Initializes the frenet planner with waypoints and a frenet frame
         
@@ -59,6 +84,7 @@ class FrenetPlanner(PathPlanner):
         - t_min: minimum time to reach the goal
         - t_max: maximum time to reach the goal
         - t_step: time step for discretizing the goal
+        - dt: time step for discretizing the path
         - num_v_steps: number of velocity steps to consider
         - v_step: velocity step size
         '''
@@ -71,9 +97,15 @@ class FrenetPlanner(PathPlanner):
         self.t_min = t_min
         self.t_max = t_max
         self.t_step = t_step
+        self.dt = dt
         
         self.num_v_steps = num_v_steps
         self.v_step = v_step
+        
+        self.max_speed = 15.0
+        self.max_accel = 10.0
+        
+        self.current_path = None
         
     def plan(self, occupancy_grid, pose):
         '''
@@ -83,87 +115,84 @@ class FrenetPlanner(PathPlanner):
         - occupancy_grid: Occupancies object
         - pose: Pose object, current pose of the vehicle in global frame
         '''
-        x, y, s_dot, yaw = pose.x, pose.y, pose.velocity, pose.yaw
-        s, d = self.frenet_frame.cartesian_to_frenet(x, y)
-        s_ddot = 0.0 ####### hack #######
-        frenet_paths = self._generate_frenet_paths(s, s_dot, s_ddot, d, 0, 0)
-        valid_paths = self._generate_valid_global_paths(frenet_paths, pose, occupancy_grid)
-        
-        min_cost = np.inf
-        best_path = None
-        for path in valid_paths:
-            waypoints, cost = path
-            if cost < min_cost:
-                min_cost = cost
-                best_path = waypoints
+        x0, y0, s0_dot = pose.x, pose.y, pose.velocity
+        s0, d0 = self.frenet_frame.cartesian_to_frenet(x0, y0)
+        s0_ddot = 0.0 ####### hack #######
+            
+        # replan condition
+        if (self.current_path is None
+                or self.frenet_frame.progress_diff(self.current_path.s[0], s0) > 5.0
+                or self.current_path.is_collision(pose, occupancy_grid)):
+            
+            frenet_paths, costs = self._generate_frenet_paths(s0, s0_dot, s0_ddot, d0, 0, 0)
+            valid_indices = self._check_valid(frenet_paths, pose, occupancy_grid)
 
-        return best_path, valid_paths
+            valid_paths = frenet_paths[valid_indices]
+            valid_costs = costs[valid_indices]
+            
+            if len(valid_paths) > 0:
+                best_path = valid_paths[np.argmin(valid_costs)]
+                self.current_path = best_path
+                
+        if self.current_path is None:
+            return None, False
+
+        return self.current_path.to_waypoints(), True
     
-    def _generate_frenet_paths(self, s, s_dot, s_ddot, d, d_dot, d_ddot):
+    def _generate_frenet_paths(self, s0, s0_dot, s0_ddot, d0, d0_dot, d0_ddot):
         
         frenet_paths = []
+        costs = []
         
-        for d_target in np.arange(-self.left_lim, self.right_lim, self.lane_width):
+        for d_target in np.arange(-self.right_lim, self.left_lim+0.01, self.lane_width):
             for t_target in np.arange(self.t_min, self.t_max, self.t_step):
-                lateral_poly = QuarticPolynomial(d, d_dot, d_ddot, d_target, 0, 0, t_target)
+                lateral_poly = QuinticPolynomial(d0, d0_dot, d0_ddot, d_target, 0.0, 0.0, t_target)
     
-                t = np.arange(0, t_target, self.t_step)
-                d = lateral_poly.calc_point(frenet_path.t)
-                d_d = lateral_poly.calc_first_derivative(frenet_path.t)
-                d_dd = lateral_poly.calc_second_derivative(frenet_path.t)
-                d_ddd = lateral_poly.calc_third_derivative(frenet_path.t)
+                t = np.arange(0, t_target, self.dt)
+                d = lateral_poly.calc_point(t)
+                d_d = lateral_poly.calc_first_derivative(t)
+                d_dd = lateral_poly.calc_second_derivative(t)
+                d_ddd = lateral_poly.calc_third_derivative(t)
                 
-                for v_target in np.arange(s_dot-self.num_v_steps*self.v_step, s_dot+self.num_v_steps*self.v_step, self.v_step):
-                    frenet_path = FrenetPath()
-                    longitudinal_poly = QuinticPolynomial(s, s_dot, s_ddot, v_target, 0, 0, t_target)
+                v_target = max(s0_dot, 1.0)
+                longitudinal_poly = QuarticPolynomial(s0, s0_dot, s0_ddot, v_target, 0.0, t_target)
+                
+                s = longitudinal_poly.calc_point(t)
+                s_d = longitudinal_poly.calc_first_derivative(t)
+                s_dd = longitudinal_poly.calc_second_derivative(t)
+                s_ddd = longitudinal_poly.calc_third_derivative(t)
+                
+                frenet_path = FrenetPath(self.frenet_frame, t, s, d, s_d, d_d, s_dd, d_dd, s_ddd, d_ddd)
+                
+                # square of jerk
+                Jd = sum(np.power(frenet_path.d_ddd, 2))  
+                Js = sum(np.power(frenet_path.s_ddd, 2))
+                
+                # square of diff from desired velocity
+                ds = (s0_dot - frenet_path.s_d[-1])**2
+                
+                frenet_path.cd = K_J * Jd + K_T * t_target + K_D * frenet_path.d[-1]**2
+                frenet_path.cv = K_J * Js + K_T * t_target + K_D * ds
+                frenet_path.cf = K_LAT * frenet_path.cd + K_LON * frenet_path.cv
+                
+                frenet_paths.append(frenet_path)
+                costs.append(frenet_path.cf)
                     
-                    frenet_path.t = t
-                    frenet_path.d = d
-                    frenet_path.d_d = d_d
-                    frenet_path.d_dd = d_dd
-                    frenet_path.d_ddd = d_ddd
-                    
-                    frenet_path.s = longitudinal_poly.calc_point(frenet_path.t)
-                    frenet_path.s_d = longitudinal_poly.calc_first_derivative(frenet_path.t)
-                    frenet_path.s_dd = longitudinal_poly.calc_second_derivative(frenet_path.t)
-                    frenet_path.s_ddd = longitudinal_poly.calc_third_derivative(frenet_path.t)
-                    
-                    # square of jerk
-                    Jd = sum(np.power(frenet_path.d_ddd, 2))  
-                    Js = sum(np.power(frenet_path.s_ddd, 2))
-                    
-                    # square of diff from desired velocity
-                    ds = (s_dot - frenet_path.s_d[-1])**2
-                    
-                    frenet_path.cd = K_J * Jd + K_T * t_target + K_D * frenet_path.d[-1]**2
-                    frenet_path.cv = K_J * Js + K_T * t_target + K_D * ds
-                    frenet_path.cf = K_LAT * frenet_path.cd + K_LON * frenet_path.cv
-                    
-                    frenet_paths.append(frenet_path)
-                    
-        return frenet_paths
+        return np.array(frenet_paths), np.array(costs)
     
-    def _generate_valid_global_paths(self, frenet_paths, pose, occupancy_grid):
-        valid_paths = []
-        for frenet_path in frenet_paths:
-            x,y = self.frenet_frame.frenet_to_cartesian(frenet_path.s, frenet_path.d)
-            velocity = frenet_path.s_d
-            
-            positions = np.vstack((x,y))
-            positions_local = pose.global_position_to_pose_frame(positions)
-            
-            if (occupancy_grid.is_collision(
-                'laser', positions_local[0,:], positions_local[1,:])
-                or self._check_limits(frenet_path)):
+    def _check_valid(self, frenet_paths, pose, occupancy_grid):
+        valid_indices = []
+        for i, frenet_path in enumerate(frenet_paths):
+            if not self._is_valid(frenet_path):
                 continue
-            
-            else: 
-                waypoints = Waypoints.from_numpy(np.vstack((x,y,velocity)).T)
-                valid_paths.append((waypoints, frenet_path.cf))
+            if frenet_path.is_collision(pose, occupancy_grid):
+                continue
+            else:
+                valid_indices.append(i)
                 
-        return valid_paths
+        return valid_indices
 
-    def _check_limits(self, frenet_path):
+    def _is_valid(self, frenet_path):
         '''
         Checks if the frenet path is within the limits of the frenet frame.
         '''

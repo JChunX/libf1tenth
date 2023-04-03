@@ -179,6 +179,12 @@ class Occupancies:
         - is_collision: False if the point is collision free
         '''
         x_idx, y_idx = self.pc_to_grid_indices(x_pc, y_pc)
+        # remove indices that are out of bounds
+        # out of bounds means if either x or y is out of bounds
+        valid_mask = ((x_idx >= 0) & (x_idx < self.x_size) & (y_idx >= 0) & (y_idx < self.y_size))
+        x_idx = x_idx[valid_mask]
+        y_idx = y_idx[valid_mask]
+        
         is_collision = False
         if np.isscalar(x_pc):
             is_collision = self.layers[layer_name]['occupancy'][x_idx, y_idx] != 0

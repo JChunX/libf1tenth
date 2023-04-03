@@ -31,30 +31,43 @@ def to_waypoint_target_viz_msg(waypoint_position):
     
     return marker
 
-def to_waypoints_viz_msg(waypoints):
+def to_waypoints_viz_msg(waypoints, waypoint_visualize_message=None, color='r'):
     '''
     Creates a MarkerArray message for visualization of waypoints
     
     Args:
     - waypoints: Waypoints object
+    - waypoint_visualize_message: MarkerArray message to update
+    - color: color of the waypoints
     
     Returns:
     - waypoint_visualize_message: MarkerArray message
     '''
-    waypoint_visualize_message = MarkerArray()
-    for i in range(0, len(waypoints), 5):
+    if waypoint_visualize_message is None:
+        waypoint_visualize_message = MarkerArray()
+    for i in range(0, len(waypoints), 20):
         marker = Marker()
-        marker.id = i
+        # id is a random number between 0 and 2^32
+        marker.id = np.random.randint(0, 2**15)
         marker.header.frame_id = "/map"
         marker.type = marker.SPHERE
         marker.action = marker.ADD
         marker.scale.x = 0.05
         marker.scale.y = 0.05
         marker.scale.z = 0.05
-        marker.color.r = 2*((waypoints.velocity[i]) / 15.0)# * 255.
-        marker.color.g = 0.0
-        marker.color.b = 1.0#25.
-        marker.color.a = 1.0#255.
+        if color == 'r':
+            marker.color.r = 2*((waypoints.velocity[i]) / 15.0)# * 255.
+            marker.color.g = 0.0
+            marker.color.b = 0.0
+        elif color == 'g':
+            marker.color.r = 0.0
+            marker.color.g = 2*((waypoints.velocity[i]) / 15.0)# * 255.
+            marker.color.b = 0.0
+        elif color == 'b':
+            marker.color.r = 0.0
+            marker.color.g = 0.0
+            marker.color.b = 2*((waypoints.velocity[i]) / 15.0)# * 255.
+        marker.color.a = 1.0
         marker.pose.orientation.w = 1.0
         marker.pose.position.x = float(waypoints.x[i])
         marker.pose.position.y =  float(waypoints.y[i])
