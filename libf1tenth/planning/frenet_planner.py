@@ -1,15 +1,15 @@
-import numpy as np
+import time
 
-from libf1tenth.planning.waypoints import Waypoints
+import numpy as np
 from libf1tenth.planning.frenet import FrenetFrame
 from libf1tenth.planning.path_planner import PathPlanner
-from libf1tenth.planning.polynomial import QuarticPolynomial, \
-                                           QuinticPolynomial
-                                           
+from libf1tenth.planning.polynomial import QuarticPolynomial, QuinticPolynomial
+from libf1tenth.planning.waypoints import Waypoints
+
 # cost weights
 K_J = 0.1
-K_T = 0.1
-K_D = 10.0
+K_T = -0.1
+K_D = 5.0
 K_LAT = 1.0
 K_LON = 1.0
                                            
@@ -70,9 +70,8 @@ class FrenetPlanner(PathPlanner):
     '''
     FrenetPlanner plans a path using the Frenet frame while avoiding obstacles.
     '''
-    def __init__(self, waypoints, left_lim=0.8, right_lim=0.8, lane_width=0.2, 
-                                  t_min=4.0, t_max=4.5, t_step=0.25, dt=0.01,
-                                  num_v_steps=1, v_step=0.5):
+    def __init__(self, waypoints, left_lim=1.0, right_lim=1.0, lane_width=0.2, 
+                                  t_min=2.0, t_max=5.0, t_step=0.5, dt=0.005):
         '''
         Initializes the frenet planner with waypoints and a frenet frame
         
@@ -85,8 +84,6 @@ class FrenetPlanner(PathPlanner):
         - t_max: maximum time to reach the goal
         - t_step: time step for discretizing the goal
         - dt: time step for discretizing the path
-        - num_v_steps: number of velocity steps to consider
-        - v_step: velocity step size
         '''
         self.waypoints = waypoints
         self.frenet_frame = FrenetFrame(waypoints)
@@ -99,15 +96,13 @@ class FrenetPlanner(PathPlanner):
         self.t_step = t_step
         self.dt = dt
         
-        self.num_v_steps = num_v_steps
-        self.v_step = v_step
-        
         self.max_speed = 15.0
         self.max_accel = 10.0
         
         self.current_path = None
+        self.plan_time = -np.inf
         
-    def plan(self, occupancy_grid, pose):
+    def plan(self, occupancy_grid, pose, logger=None):
         '''
         Plan a path through the waypoints given the occupancy grid.
         
@@ -119,20 +114,26 @@ class FrenetPlanner(PathPlanner):
         s0, d0 = self.frenet_frame.cartesian_to_frenet(x0, y0)
         s0_ddot = 0.0 ####### hack #######
             
-        # replan condition
-        if (self.current_path is None
-                or self.frenet_frame.progress_diff(self.current_path.s[0], s0) > 5.0
-                or self.current_path.is_collision(pose, occupancy_grid)):
-            
-            frenet_paths, costs = self._generate_frenet_paths(s0, s0_dot, s0_ddot, d0, 0, 0)
-            valid_indices = self._check_valid(frenet_paths, pose, occupancy_grid)
+        frenet_paths, costs = self._generate_frenet_paths(s0, s0_dot, s0_ddot, d0, 0, 0)
+        valid_indices = self._check_valid(frenet_paths, pose, occupancy_grid)
 
-            valid_paths = frenet_paths[valid_indices]
-            valid_costs = costs[valid_indices]
-            
-            if len(valid_paths) > 0:
-                best_path = valid_paths[np.argmin(valid_costs)]
+        valid_paths = frenet_paths[valid_indices]
+        valid_costs = costs[valid_indices]
+        #valid_costs[valid_indices] -= 9000.0
+        
+        if len(valid_paths) > 0:
+            best_path = valid_paths[np.argmin(valid_costs)]
+            if self.current_path is None:
                 self.current_path = best_path
+                self.plan_time = time.time()
+            
+            elif (self.frenet_frame.progress_diff(self.current_path.s[0], s0) > 3
+                    or self.current_path.is_collision(pose, occupancy_grid) 
+                    or np.abs(best_path.d[-1] - self.current_path.d[-1]) > 0.2):
+                self.current_path = best_path
+                self.plan_time = time.time()
+        else:
+            logger.info('No valid paths found')
                 
         if self.current_path is None:
             return None, False
@@ -145,7 +146,7 @@ class FrenetPlanner(PathPlanner):
         costs = []
         
         for d_target in np.arange(-self.right_lim, self.left_lim+0.01, self.lane_width):
-            for t_target in np.arange(self.t_min, self.t_max, self.t_step):
+            for t_target in np.arange(self.t_min, self.t_max+0.01, self.t_step):
                 lateral_poly = QuinticPolynomial(d0, d0_dot, d0_ddot, d_target, 0.0, 0.0, t_target)
     
                 t = np.arange(0, t_target, self.dt)

@@ -5,8 +5,8 @@ from libf1tenth.planning.pose import Pose
 
 class StanleyController(LateralController):
     def __init__(self, K=1.0, Kd=0.1, wheelbase=0.58, 
-                 lookahead_schedule=([3.0, 4.0, 7.0],
-                                     [0.8, 0.98, 1.9])): # .7 .97, 2.1
+                 lookahead_schedule=([1.0, 3.0, 4.0, 7.0],
+                                     [0.1, 0.2, 0.98, 1.9])): #3-0.8
         super().__init__()
         self.K = K
         self.Kd = Kd
@@ -65,11 +65,11 @@ class StanleyController(LateralController):
         self.crosstrack_error = crosstrack_error
     
     def _find_steering_error(self, heading, steering, waypoints, waypoint_idx):
-        #steering_heading = heading + steering
+        steering_heading = heading + steering
         waypoint_heading = waypoints[waypoint_idx, 3]
         
-        #steering_error = waypoint_heading - steering_heading
-        steering_error = waypoint_heading - heading # TODO: verify this is correct
+        steering_error = waypoint_heading - steering_heading
+        #steering_error = waypoint_heading - heading # TODO: verify this is correct
         self.steering_error = np.arctan2(np.sin(steering_error), np.cos(steering_error)) # normalize to [-pi, pi]
         
     def _find_curvature_augmentation_coefficient(self):
