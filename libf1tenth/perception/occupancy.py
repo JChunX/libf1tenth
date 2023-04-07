@@ -3,9 +3,9 @@ from typing import Union
 import numpy as np
 from numba import njit
 from nav_msgs.msg import OccupancyGrid
-from scipy.ndimage import binary_dilation
+from scipy.ndimage import binary_dilation, generate_binary_structure
 
-from libf1tenth.util.geometry import bresenham
+from libf1tenth.util.fast_math import bresenham
 from libf1tenth.util.transformations import to_homogenous
 
 
@@ -24,7 +24,7 @@ class Occupancies:
     - each layer contains a occupancy map with probability [0-1]
     
     Args:
-    - resolution: resolution of the occupancy grid
+    - resolution: resolution of the occupancy grid, meters per cell
     - x_size: number of cells in x direction
     - y_size: number of cells in y direction
     '''
@@ -150,6 +150,20 @@ class Occupancies:
 
         self.layers[layer_name]['occupancy'][x_occ_idx, y_occ_idx] = confidence
         
+        # x from 0 to 0.3, y from -0.2 to 0.2 should be set to zero
+        x_ego = np.linspace(0, 0.3, 100)
+        y_ego = np.linspace(-0.2, 0.2, 100)
+        ego_x_idx, ego_y_idx = self.pc_to_grid_indices(x_ego, y_ego)
+        self.layers[layer_name]['occupancy'][ego_x_idx, ego_y_idx] = 0
+        
+    @staticmethod
+    def sphere(n):
+        struct = np.zeros((2 * n + 1, 2 * n + 1))
+        x, y = np.indices((2 * n + 1, 2 * n + 1))
+        mask = (x - n)**2 + (y - n)**2 <= n**2
+        struct[mask] = 1
+        return struct.astype(np.bool)
+        
     def dilate_layer(self, layer_name, iterations=1):
         '''
         dilates the occupancy of given layer by the given number of iterations
@@ -162,13 +176,17 @@ class Occupancies:
         # set all values > 0.5 to 1 and all values <= 0.5 to 0
         occupancy = self.layers[layer_name]['occupancy']
         occupancy = (occupancy > 0.5).astype(float)
+        
+        car_half_width = 0.2
+        n = int(car_half_width / self.resolution)
+        struct = self.sphere(n)
         self.layers[layer_name]['occupancy'] = binary_dilation(
-                                                    occupancy, 
+                                                    occupancy, structure=struct,
                                                     iterations=iterations).astype(float)
         
     def is_collision(self, layer_name, x_pc, y_pc):
         '''
-        Determines if the single given pointcloud location is collision free
+        Determines if the given pointcloud location(s) is collision free
         
         Args:
         - layer_name: name of the layer to check
@@ -186,11 +204,15 @@ class Occupancies:
         y_idx = y_idx[valid_mask]
         
         is_collision = False
+        num_collision = 0
         if np.isscalar(x_pc):
             is_collision = self.layers[layer_name]['occupancy'][x_idx, y_idx] != 0
+            num_collision = 1 if is_collision else 0
         else:
-            is_collision = np.any(self.layers[layer_name]['occupancy'][x_idx, y_idx] != 0)
-        return is_collision
+            num_collision = np.count_nonzero(self.layers[layer_name]['occupancy'][x_idx, y_idx] != 0)
+            is_collision = num_collision > 0
+            
+        return is_collision, num_collision
         
     def check_line_collision(self, layer_name, x1, y1, x2, y2):
         '''

@@ -2,11 +2,12 @@ import numpy as np
 from libf1tenth.controllers import LateralController
 from libf1tenth.filter import DerivativeFilter
 from libf1tenth.planning.pose import Pose
+from libf1tenth.util.fast_math import nearest_point
 
 class StanleyController(LateralController):
     def __init__(self, K=1.0, Kd=0.1, wheelbase=0.58, 
                  lookahead_schedule=([1.0, 3.0, 4.0, 7.0],
-                                     [0.1, 0.2, 0.98, 1.9])): #3-0.8
+                                     [0.5, 0.5, 0.98, 1.9])): #3-0.8
         super().__init__()
         self.K = K
         self.Kd = Kd
@@ -44,15 +45,16 @@ class StanleyController(LateralController):
         front_axle_augmented = front_axle_position + self.lookahead * np.array([np.cos(heading + steering), np.sin(heading + steering)])
         
         # find the closest waypoint to the front axle
-        crosstrack_waypoint_idx = np.argmin(np.linalg.norm(waypoints[:, :2] - front_axle_position, axis=1))
+        crosstrack_waypoint_idx = nearest_point(front_axle_position[0], front_axle_position[1], waypoints)
+        
         front_axle_pose = Pose.from_position_theta(
             front_axle_position[0], 
             front_axle_position[1], 
             heading+steering)
 
         # find the closest waypoint to the front axle augmented position
-        crosstrack_waypoint_idx_augmented = np.argmin(np.linalg.norm(waypoints[:, :2] - front_axle_augmented, axis=1))
-        
+        crosstrack_waypoint_idx_augmented = nearest_point(front_axle_augmented[0], front_axle_augmented[1], waypoints)
+
         self._find_crosstrack_error(front_axle_pose, waypoints, crosstrack_waypoint_idx)
         
         self.waypoint_idx = crosstrack_waypoint_idx
