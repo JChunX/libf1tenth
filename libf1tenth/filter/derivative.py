@@ -19,7 +19,7 @@ class DerivativeFilter(Filter):
         buffer = self.average_filter.buffer
         if len(buffer) < 2:
             return 0.0
-        return (buffer[-1] - buffer[0]) / (len(buffer) - 1.0)
+        return np.mean(np.diff(buffer))
     
     def is_ready(self):
         return self.average_filter.is_ready()
