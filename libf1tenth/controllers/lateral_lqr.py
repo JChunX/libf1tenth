@@ -14,14 +14,14 @@ from libf1tenth.controllers import LateralController
 from libf1tenth.filter import DerivativeFilter
 from libf1tenth.planning.pose import Pose
 from libf1tenth.util.fast_math import nearest_point, solve_lqr, update_matrix
-
+from typing import List
 
 class LateralLQRController(LateralController):
-    def __init__(self, Q=[1.0, 0.95, 0.0066, 0.0257], 
-                 R=[0.0062], 
-                 iterations=50, 
-                 eps=0.01, 
-                 wheelbase=0.33):
+    def __init__(self, Q: List[float]=[1.0, 0.95, 0.0066, 0.0257], 
+                 R: List[float]=[0.0062], 
+                 iterations: int=50, 
+                 eps: float=0.01, 
+                 wheelbase: float=0.33):
         super().__init__()
         
         self.Q = np.diag(Q)
@@ -43,7 +43,6 @@ class LateralLQRController(LateralController):
         self.kappa_ref = 0.0
         
         self.dt = DerivativeFilter()
-        self.dt.update(0.01)
         self.prev_time = None
     
     def _compute_control_points(self, pose, waypoints):
@@ -86,7 +85,7 @@ class LateralLQRController(LateralController):
         Returns:
         - steering_angle: The steering angle in radians (float)
         '''
-        self.avg_dt.update(time.time())
+        self.dt.update(time.time())
         
         (self.theta_e, 
          self.crosstrack_error, 
@@ -96,11 +95,11 @@ class LateralLQRController(LateralController):
         
         self.d_crosstrack_error.update(self.crosstrack_error)
         self.d_theta_e.update(self.theta_e)
-        dt = self.avg_dt.get_value()
+        dt = self.dt.get_value()
 
         state_size = 4
-        Ad, Bd = update_matrix(pose, state_size, dt, self.wheelbase)
-        K = solve_lqr(Ad, Bd, self.Q, self.R, self.eps, self.max_iterations)
+        Ad, Bd = update_matrix(pose.velocity, state_size, dt, self.wheelbase)
+        K = solve_lqr(Ad, Bd, self.Q, self.R, self.eps, self.iterations)
 
         state = np.zeros((state_size, 1))
         state[0][0] = self.crosstrack_error
@@ -116,4 +115,4 @@ class LateralLQRController(LateralController):
         # Calculate final steering angle in [rad]
         steer_angle = steer_angle_feedback + steer_angle_feedforward
 
-        return steer_angle
+        return steer_angle, waypoints[self.nearest_idx]

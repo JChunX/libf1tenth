@@ -123,12 +123,12 @@ def solve_lqr(A, B, Q, R, tolerance, max_num_iteration):
     return K
 
 @njit(cache=True)
-def update_matrix(pose, state_size, timestep, wheelbase):
+def update_matrix(velocity, state_size, timestep, wheelbase):
     '''
     Calculate A and b matrices of linearized, discrete system.
 
     Args:
-    - pose: Pose object
+    - velocity: current vehicle velocity
     - state_size: state size
     - timestep: time step
     - wheelbase: wheelbase
@@ -139,20 +139,19 @@ def update_matrix(pose, state_size, timestep, wheelbase):
     '''
 
     #Current vehicle velocity
-    v = pose.velocity
 
     #Initialization of the time discrete A matrix
     Ad = np.zeros((state_size, state_size))
 
     Ad[0][0] = 1.0
     Ad[0][1] = timestep
-    Ad[1][2] = v
+    Ad[1][2] = velocity
     Ad[2][2] = 1.0
     Ad[2][3] = timestep
 
     # b = [0.0, 0.0, 0.0, v / L].T
     Bd = np.zeros((state_size, 1))  # time discrete b matrix
-    Bd[3][0] = v / wheelbase
+    Bd[3][0] = velocity / wheelbase
 
     return Ad, Bd
 

@@ -57,12 +57,12 @@ def to_waypoints_viz_msg(waypoints, waypoint_visualize_message=None, color='r', 
     Returns:
     - waypoint_visualize_message: MarkerArray message
     '''
+    
     if waypoint_visualize_message is None:
         waypoint_visualize_message = MarkerArray()
     for i in range(0, len(waypoints)):
         marker = Marker()
-        # id is a random number between 0 and 2^32
-        marker.id = np.random.randint(0, 2**15)
+        marker.id = i
         marker.header.frame_id = "/map"
         marker.action = marker.ADD
         if type == 'sphere':
