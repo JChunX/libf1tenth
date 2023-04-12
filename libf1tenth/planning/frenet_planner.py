@@ -1,16 +1,20 @@
+import math
 import time
 
 import numpy as np
+
 from libf1tenth.planning.frenet import FrenetFrame
+from libf1tenth.planning.graph import FrenetPlanGraph, PlanNode
 from libf1tenth.planning.path_planner import PathPlanner
+from libf1tenth.planning.rrt import RRTPlanner
 from libf1tenth.planning.polynomial import QuarticPolynomial, QuinticPolynomial
 from libf1tenth.planning.waypoints import Waypoints
 
 # cost weights
-K_J = 0.1
-K_T = -0.1
-K_D = 50.0
-K_S = -100.0
+K_J = 0.001 # jerk
+K_T = -0.1 # time
+K_D = 10.0 # lateral offset
+K_S = -0.1 # path progress
 K_LAT = 1.0
 K_LON = 1.0
                                            
@@ -86,8 +90,8 @@ class FrenetPlanner(PathPlanner):
     '''
     FrenetPlanner plans a path using the Frenet frame while avoiding obstacles.
     '''
-    def __init__(self, waypoints, left_lim=1.0, right_lim=1.0, lane_width=0.1, 
-                                  t_min=2.0, t_max=12.0, t_step=1.0, dt=0.2):
+    def __init__(self, waypoints, left_lim=0.8, right_lim=0.8, lane_width=0.1, 
+                                  t_min=2.0, t_max=2.0, t_step=0.1, dt=0.3, logger=None):
         '''
         Initializes the frenet planner with waypoints and a frenet frame
         
@@ -101,6 +105,7 @@ class FrenetPlanner(PathPlanner):
         - t_step: time step for discretizing the goal
         - dt: time step for discretizing the path
         '''
+        super().__init__()
         self.waypoints = waypoints
         self.frenet_frame = FrenetFrame(waypoints)
         
@@ -118,7 +123,9 @@ class FrenetPlanner(PathPlanner):
         self.current_path = None
         self.plan_time = -np.inf
         
-    def plan(self, occupancy_grid, pose, logger=None):
+        self.logger = logger
+        
+    def plan(self, occupancy_grid, pose):
         '''
         Plan a path through the waypoints given the occupancy grid.
         
@@ -130,7 +137,6 @@ class FrenetPlanner(PathPlanner):
         s0, d0 = self.frenet_frame.cartesian_to_frenet(x0, y0)
         s0_ddot = 0.0 ####### hack #######
         d0_dot = np.sin(pose.theta - self.frenet_frame.cs_syaw(s0)) * s0_dot
-        logger.info('d0_dot: {}'.format(d0_dot))
             
         frenet_paths, costs = self._generate_frenet_paths(s0, s0_dot, s0_ddot, d0, d0_dot, 0, pose, occupancy_grid)
         valid_indices = self._check_valid(frenet_paths)
@@ -140,17 +146,18 @@ class FrenetPlanner(PathPlanner):
         #valid_costs[valid_indices] -= 9000.0
         
         if len(valid_paths) > 0:
+            path_dt = time.time() - self.plan_time
             best_path = valid_paths[np.argmin(valid_costs)]
             if self.current_path is None:
                 self.current_path = best_path
                 self.plan_time = time.time()
             
-            elif (self.frenet_frame.progress_diff(s0, self.current_path.s[-1]) < 2.0
+            elif (path_dt > 0.2
                     or self.current_path.num_collisions(pose, occupancy_grid) > 0):
                 self.current_path = best_path
                 self.plan_time = time.time()
         else:
-            logger.info('No valid paths found')
+            self.logger.info('No valid paths found')
                 
         if self.current_path is None:
             return None, None, False
@@ -162,9 +169,17 @@ class FrenetPlanner(PathPlanner):
         frenet_paths = []
         costs = []
         
-        for d_target in np.arange(-self.right_lim+d0, self.left_lim+d0+0.01, self.lane_width):
+        if s0_dot < 1.0:
+            t_plan = 3.0
+        else:
+            t_plan = 4.0 / s0_dot
+        t_min = t_plan
+        t_max = t_plan
+        t_step = t_plan / 50.0
+        
+        for d_target in np.arange(-self.right_lim, self.left_lim+0.01, self.lane_width):
             d_target += np.random.uniform(-self.lane_width/2.0, self.lane_width/2.0)
-            for t_target in np.arange(self.t_min, self.t_max+0.01, self.t_step):
+            for t_target in np.arange(t_min, t_max+0.01, t_step):
                 lateral_poly = QuinticPolynomial(d0, d0_dot, d0_ddot, d_target, 0.0, 0.0, t_target)
     
                 t = np.arange(0, t_target, self.dt)
@@ -192,8 +207,8 @@ class FrenetPlanner(PathPlanner):
                 Jd = sum(np.power(d_ddd, 2))  
                 Js = sum(np.power(s_ddd, 2))
                 
-                cd = K_J * Jd + K_T * t_target + K_D * frenet_path.d[-1]**2
-                cv = K_J * Js + K_T * t_target + K_S * self.frenet_frame.progress_diff(s0, frenet_path.s[-1])**2
+                cd = K_J * Jd + K_T * t_target + K_D * np.sum(frenet_path.d**2)
+                cv = K_J * Js + K_T * t_target + K_S * self.frenet_frame.wrapped_diff(s0, frenet_path.s[-1])**2
                 cf = K_LAT * cd + K_LON * cv
                 
                 frenet_path.finalize(d_d, d_dd, d_ddd, s_d, s_dd, s_ddd, cd, cv, cf)
@@ -225,3 +240,184 @@ class FrenetPlanner(PathPlanner):
             return False
 
         return True
+    
+class FrenetRRTStarPlanner(RRTPlanner):
+    '''
+    RRT*, but in frenet frame.
+    '''
+    def __init__(self, waypoints, 
+                 search_radius,  
+                 max_iterations, 
+                 expansion_distance, 
+                 goal_threshold, 
+                 occ_grid_layer='laser', 
+                 left_lim=0.5, right_lim=0.5,
+                 logger=None):
+        
+        super().__init__(search_radius, 
+                         max_iterations, 
+                         expansion_distance, 
+                         goal_threshold, 
+                         occ_grid_layer,
+                         logger)
+        
+        self.waypoints = waypoints
+        self.frenet_frame = FrenetFrame(waypoints)
+        
+        self.current_path = None
+        self.plan_time = -np.inf
+        self.lookahead = None
+        self.left_lim = left_lim
+        self.right_lim = right_lim
+        
+    def plan(self, occupancy_grid, pose):
+        self.occupancy_grid = occupancy_grid
+        self.pose = pose
+        self.lookahead = self.occupancy_grid.lookahead_distance // 2
+        x0, y0, s0dot = self.pose.x, self.pose.y, self.pose.velocity
+        s0, d0 = self.frenet_frame.cartesian_to_frenet(x0, y0)
+        d0_dot = np.sin(self.pose.theta - self.frenet_frame.cs_syaw(s0)) * s0dot
+        sf = s0 + self.lookahead
+        self.nominal_s_path = np.linspace(s0, sf, int(self.lookahead*20))
+        self.nominal_k_path_norm = self.frenet_frame.cs_sk(self.nominal_s_path)
+        self.nominal_k_path_norm = self.nominal_k_path_norm / np.sum(self.nominal_k_path_norm)
+        
+        self.target_waypoint = np.array([sf, d0])
+        self.G = FrenetPlanGraph(self.frenet_frame, (s0, d0))
+        self.is_goal_reached = False
+        positions = None
+        
+        for i in range(self.max_iterations):
+            position = self._sample_free()
+            if positions is None:
+                positions = position
+            else:
+                positions = np.vstack((positions, position))
+            new_node = PlanNode(position[0], position[1])
+            nearest_node_id = self.G.get_nearest_node_idx(new_node)
+            nearest_node = self.G.get_node(nearest_node_id)
+            #self._steer(new_node, nearest_node)
+            
+            if not self._check_collision(new_node, nearest_node):
+                self.G.add_node(new_node)
+                self.G.add_edge(nearest_node_id, new_node.id, 
+                                parent_id=nearest_node_id, cost=self._cost(parent_node=nearest_node, 
+                                                                           child_node=new_node))
+                
+                near_node_ids = self.G.get_near_node_ids(new_node, self.search_radius)
+
+                for near_node_id in near_node_ids:
+                    near_node = self.G.get_node(near_node_id)
+                    if not self._check_collision(new_node, near_node):
+                        new_cost = self._cost(parent_node=new_node, 
+                                              child_node=near_node)
+                        
+                        if new_cost < near_node.cost:
+                            self.G.add_edge(new_node.id, near_node_id, parent_id=new_node.id, cost=new_cost)
+            else:
+                continue
+
+            if self._is_goal_reached(new_node) and i > self.max_iterations//2:
+                self.destination_node_id = new_node.id
+                self.is_goal_reached = True
+                break
+        print('debug')
+        return self.is_goal_reached
+    
+    def _cost(self, parent_node, child_node):        
+        return parent_node.cost + self.frenet_frame.frenet_distance(
+            parent_node.position, child_node.position)
+            
+    def get_rrt_waypoints(self, velocity=0.5):
+        '''
+        Get the planned waypoints in the global frame.
+        '''
+        if not self.is_goal_reached:
+            return None
+        destination_node = self.G.nodes[self.destination_node_id]
+        s_d, d_d = destination_node.position
+        x_d, y_d = self.frenet_frame.frenet_to_cartesian(s_d, d_d)
+        positions_to_track = np.array([x_d, y_d]).reshape(1, 2)
+        
+        cur_node = destination_node
+        while cur_node.parent is not None:
+            cur_node = self.G.nodes[cur_node.parent.id]
+            x_cur, y_cur = self.frenet_frame.frenet_to_cartesian(cur_node.position[0], 
+                                                                 cur_node.position[1])
+            pos = np.array([x_cur, y_cur]).reshape(1, 2)
+            positions_to_track = np.vstack((pos, positions_to_track)) # shape (n, 2)
+        
+        if len(positions_to_track.shape) == 1:
+            return None
+        
+        waypoints_to_track = np.hstack((positions_to_track, 
+                                        velocity * np.ones((positions_to_track.shape[0], 1))))
+        
+        waypoints = Waypoints.from_numpy(waypoints_to_track).upsample(10)#.smooth(1)
+        
+        return waypoints
+            
+    def _check_collision(self, sampled_node, nearest_node):
+        '''
+        Check if the line between the sampled node and the nearest node 
+        intersects with any obstacles.
+        
+        Args:
+        - sampled_node: PlanNode object, sampled node
+        - nearest_node: PlanNode object, nearest node to the sampled node
+        
+        Returns:
+        - is_collision: boolean
+        '''
+        s1, d1 = sampled_node.position
+        s2, d2 = nearest_node.position
+        x1, y1 = self.frenet_frame.frenet_to_cartesian(s1, d1)
+        x2, y2 = self.frenet_frame.frenet_to_cartesian(s2, d2)
+        
+        local_pos = np.array([[x1,x2],
+                              [y1,y2]])
+        global_pos = self.pose.global_position_to_pose_frame(local_pos)
+        x1, x2 = global_pos[0,0], global_pos[0,1]
+        y1, y2 = global_pos[1,0], global_pos[1,1]
+        
+        is_collision = self.occupancy_grid.check_line_collision(self.occ_grid_layer, x1, y1, x2, y2)
+        
+        return is_collision
+            
+    def _sample_free(self):
+        '''
+        Samples points along frenet trajectory with lookahead
+        Weighs sampling probability by curvature and centerline distance
+        
+        Returns:
+        - np.array of shape (2,): sampled point in frenet frame
+        '''
+        sf, df = self.target_waypoint
+        # sample d from normal distribution
+        d_sigma = self.left_lim / 3.5
+        d_sample = np.random.normal(0.0, d_sigma)
+        d_sample = max(min(d_sample, self.left_lim), -self.right_lim)
+        # sample s with probability proportional to waypoint curvature
+        # prob = self.nominal_k_path_norm + np.max(self.nominal_k_path_norm)
+        # prob = prob / np.sum(prob)
+        s_sample = np.random.choice(self.nominal_s_path)
+        
+        return np.array([s_sample, d_sample])
+    
+    def _is_goal_reached(self, node):
+        '''
+        Check if the goal is reached.
+        
+        Args:
+        - node (PlanNode): node to check
+        
+        Returns:
+        - is_goal_reached (boolean)
+        '''
+        goal_s, goal_d = self.target_waypoint
+        dist = np.sqrt((self.frenet_frame.wrapped_diff(node.position[0], goal_s))**2 +
+                       (node.position[1] - goal_d)**2)
+
+        return dist < self.goal_threshold
+
+    

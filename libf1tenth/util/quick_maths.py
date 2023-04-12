@@ -83,6 +83,33 @@ def nearest_point(x, y, waypoints):
     return idx
 
 @njit(cache=True, fastmath=True)
+def l2_norm(x, y):
+    """
+    Calculate the L2 norm of n points.
+    
+    Args:
+    - x (ndarray): x coordinates of the points
+    - y (ndarray): y coordinates of the points
+    
+    Returns:
+    - norm (ndarray): L2 norm of the points
+    """
+    return np.sqrt(x**2 + y**2)
+
+@njit(cache=True, fastmath=True)
+def argmin(x):
+    """
+    Find the index of the minimum value in an array.
+    
+    Args:
+    - x (ndarray): array to search
+    
+    Returns:
+    - idx (int): index of the minimum value
+    """
+    return np.argmin(x)
+    
+@njit(cache=True, fastmath=True)
 def solve_lqr(A, B, Q, R, tolerance, max_num_iteration):
     """
     Iteratively calculating feedback matrix K
@@ -122,7 +149,7 @@ def solve_lqr(A, B, Q, R, tolerance, max_num_iteration):
 
     return K
 
-@njit(cache=True)
+@njit(cache=True, fastmath=True)
 def update_matrix(velocity, state_size, timestep, wheelbase):
     '''
     Calculate A and b matrices of linearized, discrete system.
@@ -187,6 +214,37 @@ def nearest_point_baseline2(x, y, waypoints):
     """
     idx = np.argmin(np.linalg.norm(waypoints[:, :2] - np.array([x, y]), axis=1))
     
+def l2_norm_baseline(x, y):
+    """
+    Calculate the L2 norm of n points.
+    
+    Args:
+    - x (ndarray): x coordinates of the points
+    - y (ndarray): y coordinates of the points
+    
+    Returns:
+    - norm (ndarray): L2 norm of the points
+    """
+    norm = np.linalg.norm(np.stack([x, y], axis=1), axis=1)
+    return norm
+
+def l2_norm_baseline2(x, y):
+    """
+    Calculate the L2 norm of n points.
+    
+    Args:
+    - x (ndarray): x coordinates of the points
+    - y (ndarray): y coordinates of the points
+    
+    Returns:
+    - norm (ndarray): L2 norm of the points
+    """
+    norm = np.sqrt(x**2 + y**2)
+    return norm
+
+def argmin_baseline(x):
+    return np.argmin(x)
+    
 def solve_lqr_baseline(A, B, Q, R, tolerance, max_num_iteration):
     """
     Iteratively calculating feedback matrix K
@@ -225,10 +283,13 @@ def solve_lqr_baseline(A, B, Q, R, tolerance, max_num_iteration):
     K = np.linalg.pinv(BT @ P @ B + R) @ (BT @ P @ A + MT)
 
     return K
+
     
 if __name__ == "__main__":
     bench_nearest_pt = False
-    bench_lqr = True
+    bench_lqr = False
+    bench_l2_norm = False
+    bench_argmin = False
     
     if bench_nearest_pt:
         # nearest point benchmark
@@ -274,3 +335,42 @@ if __name__ == "__main__":
             solve_lqr_baseline(A, B, Q, R, tolerance, max_num_iteration)
         end = time.time()
         print("lqr_nonumba: ", end - start)
+        
+    if bench_l2_norm:
+        # l2 norm benchmark
+        x = np.random.rand(10000)
+        y = np.random.rand(10000)
+        
+        start = time.time()
+        for i in range(100000):
+            d = l2_norm(x, y)
+        end = time.time()
+        print("l2_norm_numba: ", end - start)
+        
+        start = time.time()
+        for i in range(100000):
+            d = l2_norm_baseline(x, y)
+        end = time.time()
+        print("l2_norm_nonumba: ", end - start)
+        
+        start = time.time()
+        for i in range(100000):
+            d = l2_norm_baseline2(x, y)
+        end = time.time()
+        print("l2_norm_nonumba2: ", end - start)
+        
+    if bench_argmin:
+        # argmin benchmark
+        x = np.random.rand(10000)
+        
+        start = time.time()
+        for i in range(100000):
+            d = argmin(x)
+        end = time.time()
+        print("argmin_numba: ", end - start)
+        
+        start = time.time()
+        for i in range(100000):
+            d = argmin_baseline(x)
+        end = time.time()
+        print("argmin_nonumba: ", end - start)

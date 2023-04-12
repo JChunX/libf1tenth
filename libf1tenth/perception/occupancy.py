@@ -5,7 +5,7 @@ from numba import njit
 from nav_msgs.msg import OccupancyGrid
 from scipy.ndimage import binary_dilation, generate_binary_structure
 
-from libf1tenth.util.fast_math import bresenham
+from libf1tenth.util.quick_maths import bresenham
 from libf1tenth.util.transformations import to_homogenous
 
 
@@ -40,29 +40,21 @@ class Occupancies:
         
         self.layers = {}
         
-    @property
-    def _pc_to_grid(self):
-        '''
-        Returns transform from pointcloud x, y to grid x, y
-        
-        x_grid = x_pc + x_origin
-        y_grid = y_pc + y_origin
-        '''
-        return np.array([[1,0,self.x_origin],
+        self._pc_to_grid = np.array([[1,0,self.x_origin],
                          [0,1,self.y_origin],
                          [0,0,1]])
         
-    @property
-    def _grid_to_pc(self):
-        '''
-        Returns transform from grid x, y to pointcloud x, y
-        
-        x_pc = x_grid - x_origin
-        y_pc = y_grid - y_origin
-        '''
-        return np.array([[1,0,-self.x_origin],
+        self._grid_to_pc = np.array([[1,0,-self.x_origin],
                          [0,1,-self.y_origin],
                          [0,0,1]])
+        
+    def _create_valid_mask(self, x_idx, y_idx):
+        return np.logical_and.reduce([
+            x_idx >= 0,
+            x_idx < self.x_size,
+            y_idx >= 0,
+            y_idx < self.y_size,
+        ])
     
     def pc_to_grid_indices(self, x_pc: Union[float, np.ndarray], y_pc: Union[float, np.ndarray]):
         '''
@@ -83,6 +75,10 @@ class Occupancies:
             return xy_idx[0,0], xy_idx[0,1]
         
         return xy_idx[:,0], xy_idx[:,1]
+    
+    def pc_to_grid_index(self, x_pc, y_pc):
+        xy_idx = (self._pc_to_grid @ np.array([[x_pc],[y_pc],[1]]) / self.resolution).astype(int).reshape(-1)[:2]
+        return xy_idx[0], xy_idx[1]
     
     def grid_indices_to_pc(self, x_idx, y_idx):
         '''
@@ -140,13 +136,10 @@ class Occupancies:
         x_occ_idx, y_occ_idx = self.pc_to_grid_indices(x_pc, y_pc)
         
         # remove points that are out of bounds
-        valid_indices = ((x_occ_idx >= 0)
-                                & (x_occ_idx < self.x_size)
-                                & (y_occ_idx >= 0)
-                                & (y_occ_idx < self.y_size))
-        x_occ_idx = x_occ_idx[valid_indices]
-        y_occ_idx = y_occ_idx[valid_indices]
-        confidence = confidence[valid_indices]
+        valid_mask = self._create_valid_mask(x_occ_idx, y_occ_idx)
+        x_occ_idx = x_occ_idx[valid_mask]
+        y_occ_idx = y_occ_idx[valid_mask]
+        confidence = confidence[valid_mask]
 
         self.layers[layer_name]['occupancy'][x_occ_idx, y_occ_idx] = confidence
         
@@ -177,7 +170,7 @@ class Occupancies:
         occupancy = self.layers[layer_name]['occupancy']
         occupancy = (occupancy > 0.5).astype(float)
         
-        car_half_width = 0.2
+        car_half_width = 0.25
         n = int(car_half_width / self.resolution)
         struct = self.sphere(n)
         self.layers[layer_name]['occupancy'] = binary_dilation(
@@ -199,7 +192,7 @@ class Occupancies:
         x_idx, y_idx = self.pc_to_grid_indices(x_pc, y_pc)
         # remove indices that are out of bounds
         # out of bounds means if either x or y is out of bounds
-        valid_mask = ((x_idx >= 0) & (x_idx < self.x_size) & (y_idx >= 0) & (y_idx < self.y_size))
+        valid_mask = self._create_valid_mask(x_idx, y_idx)
         x_idx = x_idx[valid_mask]
         y_idx = y_idx[valid_mask]
         
@@ -231,11 +224,14 @@ class Occupancies:
         
         occ_grid = self.layers[layer_name]['occupancy']
         
-        start_x_idx, start_y_idx = self.pc_to_grid_indices(x1, y1)
-        end_x_idx, end_y_idx = self.pc_to_grid_indices(x2, y2)
+        start_x_idx, start_y_idx = self.pc_to_grid_index(x1, y1)
+        end_x_idx, end_y_idx = self.pc_to_grid_index(x2, y2)
         
         # convert line segment to grid indices using Bresenham's algorithm
         x_indices, y_indices = bresenham(start_x_idx, start_y_idx, end_x_idx, end_y_idx)
+        valid_mask = self._create_valid_mask(x_indices, y_indices)
+        x_indices = x_indices[valid_mask]
+        y_indices = y_indices[valid_mask]
         # check if any of the line segment points are occupied
         is_collision = not np.all(occ_grid[x_indices, y_indices] == 0)
 

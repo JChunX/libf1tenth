@@ -13,7 +13,7 @@ import numpy as np
 from libf1tenth.controllers import LateralController
 from libf1tenth.filter import DerivativeFilter
 from libf1tenth.planning.pose import Pose
-from libf1tenth.util.fast_math import nearest_point, solve_lqr, update_matrix
+from libf1tenth.util.quick_maths import nearest_point, solve_lqr, update_matrix
 from typing import List
 
 class LateralLQRController(LateralController):
@@ -95,7 +95,10 @@ class LateralLQRController(LateralController):
         
         self.d_crosstrack_error.update(self.crosstrack_error)
         self.d_theta_e.update(self.theta_e)
-        dt = self.dt.get_value()
+        
+        dt = 0.01
+        if self.dt.is_ready():
+            dt = self.dt.get_value()
 
         state_size = 4
         Ad, Bd = update_matrix(pose.velocity, state_size, dt, self.wheelbase)
@@ -114,5 +117,5 @@ class LateralLQRController(LateralController):
 
         # Calculate final steering angle in [rad]
         steer_angle = steer_angle_feedback + steer_angle_feedforward
-
+        steer_angle = self._safety_bound(steer_angle)
         return steer_angle, waypoints[self.nearest_idx]

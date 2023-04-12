@@ -46,13 +46,15 @@ def to_waypoint_target_viz_msg(waypoint_position):
     
     return marker
 
-def to_waypoints_viz_msg(waypoints, waypoint_visualize_message=None, color='r', type='sphere'):
+def to_waypoints_viz_msg(waypoints, waypoint_visualize_message=None, color='r', type='sphere', ns='waypoints'):
     '''
     Creates a MarkerArray message for visualization of waypoints
     
     Args:
     - waypoints: Waypoints object
     - color: color of the waypoints
+    - type: type of the waypoints
+    - ns: namespace of the waypoints
     
     Returns:
     - waypoint_visualize_message: MarkerArray message
@@ -62,17 +64,19 @@ def to_waypoints_viz_msg(waypoints, waypoint_visualize_message=None, color='r', 
         waypoint_visualize_message = MarkerArray()
     for i in range(0, len(waypoints)):
         marker = Marker()
+        marker.ns = ns
         marker.id = i
         marker.header.frame_id = "/map"
         marker.action = marker.ADD
         if type == 'sphere':
             marker.type = marker.SPHERE
+            marker.scale.x = 0.05
+            marker.scale.y = 0.05
+            marker.scale.z = 0.05
         elif type == 'line_strip':
             marker.type = marker.LINE_STRIP
-            
-        marker.scale.x = 0.05
-        marker.scale.y = 0.05
-        marker.scale.z = 0.05
+            marker.scale.x = 0.1
+    
         if color == 'r':
             marker.color.r = 1.0
         elif color == 'g':
@@ -88,7 +92,7 @@ def to_waypoints_viz_msg(waypoints, waypoint_visualize_message=None, color='r', 
         
     return waypoint_visualize_message
 
-def to_graph_viz_msg(graph, frame_id):
+def to_graph_viz_msg(graph, frame_id, ns='graph'):
     '''
     Creates a MarkerArray message for visualization of graph
     
@@ -104,6 +108,7 @@ def to_graph_viz_msg(graph, frame_id):
     for i in range(len(graph.nodes)):
         marker = Marker()
         marker.id = i
+        marker.ns = ns
         marker.header.frame_id = frame_id
         marker.type = marker.SPHERE
         marker.action = marker.ADD

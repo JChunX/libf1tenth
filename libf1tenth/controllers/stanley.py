@@ -5,7 +5,7 @@ import numpy as np
 from libf1tenth.controllers import LateralController
 from libf1tenth.filter import DerivativeFilter
 from libf1tenth.planning.pose import Pose
-from libf1tenth.util.fast_math import nearest_point
+from libf1tenth.util.quick_maths import nearest_point
 
 
 class StanleyController(LateralController):

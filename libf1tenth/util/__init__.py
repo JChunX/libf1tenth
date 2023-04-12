@@ -1,2 +1,2 @@
 from .transformations import *
-from .fast_math import *
+from .quick_maths import *
