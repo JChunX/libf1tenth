@@ -29,10 +29,12 @@ class Occupancies:
     - y_size: number of cells in y direction
     '''
     
-    def __init__(self, resolution, x_size, y_size):
+    def __init__(self, resolution, x_size, y_size, car_half_width=0.2):
         self.resolution = resolution
         self.x_size = x_size
         self.y_size = y_size
+        self.car_half_width = car_half_width
+        
         self.x_origin = 0.0
         self.y_origin = self.y_size * self.resolution / 2.0 # units: m
         
@@ -170,8 +172,7 @@ class Occupancies:
         occupancy = self.layers[layer_name]['occupancy']
         occupancy = (occupancy > 0.5).astype(float)
         
-        car_half_width = 0.25
-        n = int(car_half_width / self.resolution)
+        n = int(self.car_half_width / self.resolution)
         struct = self.sphere(n)
         self.layers[layer_name]['occupancy'] = binary_dilation(
                                                     occupancy, structure=struct,

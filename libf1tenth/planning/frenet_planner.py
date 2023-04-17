@@ -27,7 +27,7 @@ class FrenetPath:
         self.frenet_frame = frenet_frame
         self.t = t # time
         self.s = s # path progress
-        self.path_length = self.frenet_frame.progress_diff(s[0], s[-1])
+        self.path_length = self.frenet_frame.wrapped_diff(self.s[0], self.s[-1])
         self.d = d # lateral offset
         
         self.d_d = [] # lateral velocity
@@ -188,9 +188,8 @@ class FrenetPlanner(PathPlanner):
                 v_target = max(s0_dot, 1.0)
                 longitudinal_poly = QuarticPolynomial(s0, s0_dot, s0_ddot, v_target, 0.0, t_target)
                 
-                s = longitudinal_poly.calc_point(t)
+                s = self.frenet_frame.wrap(longitudinal_poly.calc_point(t))
 
-                
                 frenet_path = FrenetPath(self.frenet_frame, t, s, d)
                 
                 if frenet_path.num_collisions(pose, occupancy_grid) > 0:
