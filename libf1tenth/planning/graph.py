@@ -1,5 +1,5 @@
 import numpy as np
-from numba import njit
+from libf1tenth.util.quick_maths import l2_norm
 
 '''
 Graph components
@@ -81,14 +81,15 @@ class PlanGraph:
         Returns a list of the (num) nearest nodes to the given node
         
         Args:
-        - node: PlanNode object
-        - num: number of nearest nodes to return
+        - node (PlanNode): node to find nearest nodes to
+        - num (int): number of nearest nodes to return
         
         Returns:
-        - nearest_nodes: list of PlanNode objects
+        - nearest_nodes (list): list of nearest nodes
         '''
         
-        distances = np.linalg.norm(self.node_positions - node.position, axis=1)
+        diff = self.node_positions - node.position
+        distances = l2_norm(diff[:,0], diff[:,1])
         nearest_node_ids = np.argwhere(distances < radius).flatten()
         nearest_node_ids = nearest_node_ids[np.argsort(distances[nearest_node_ids])][:max_num]
         
@@ -99,28 +100,56 @@ class PlanGraph:
         Returns the nearest node idx to the given node
         
         Args:
-        - node: PlanNode object
+        - node (PlanNode): node to find nearest node to
         
         Returns:
-        - nearest_node_idx: index of nearest node in self.nodes
+        - nearest_node_idx (int): index of nearest node in self.nodes
         '''
-        return np.argmin(np.linalg.norm(self.node_positions - node.position, axis=1))
+        diff = self.node_positions - node.position
+        return np.argmin(l2_norm(diff[:,0], diff[:,1]))
     
+
+class FrenetPlanGraph(PlanGraph):
+    
+    def __init__(self, frenet_frame, start_pos, end_pos=None):
+        super().__init__(start_pos, end_pos)
+        self.frenet_frame = frenet_frame
+        
+    def add_edge(self, a, b, parent_id, cost):
+        super().add_edge(a, b, parent_id, True, cost)
+        
+    def get_near_node_ids(self, node, radius, max_num=50):
+        distances = self.frenet_frame.frenet_distance(node.position, self.node_positions)
+        nearest_node_ids = np.argwhere(distances < radius).flatten()
+        nearest_node_ids = nearest_node_ids[np.argsort(distances[nearest_node_ids])][:max_num]
+        
+        return nearest_node_ids
+    
+    def get_nearest_node_idx(self, node):
+        distances = self.frenet_frame.frenet_distance(node.position, self.node_positions)
+        return np.argmin(distances)
 
 class PlanNode:
     '''
     Node representation for planning purposes
+    
+    Args:
+    - x (float): x position
+    - y (float): y position
+    - parent (PlanNode): parent node
+    - aux_states (dict): dictionary of auxiliary states
     '''
     
-    def __init__(self, x, y, parent: 'PlanNode'=None):
+    def __init__(self, x, y, parent: 'PlanNode'=None, aux_states=None):
         self.x = x
         self.y = y
         self.parent = parent
         self.id = None
         self.cost = 0.0
+        self.aux_states = aux_states
 
     def __repr__(self):
-        return f'PlanNode(x={self.x}, y={self.y}, parent={self.parent})'
+        return f'PlanNode(x={self.x}, y={self.y}, parent={self.parent}, id={self.id}, cost={self.cost}, aux_states={self.aux_states})'
     
     @property
     def position(self):

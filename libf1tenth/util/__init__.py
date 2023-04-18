@@ -1,2 +1,2 @@
 from .transformations import *
-from .geometry import *
+from .quick_maths import *

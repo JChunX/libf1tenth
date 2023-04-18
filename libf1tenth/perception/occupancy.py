@@ -3,9 +3,9 @@ from typing import Union
 import numpy as np
 from numba import njit
 from nav_msgs.msg import OccupancyGrid
-from scipy.ndimage import binary_dilation
+from scipy.ndimage import binary_dilation, generate_binary_structure
 
-from libf1tenth.util.geometry import bresenham
+from libf1tenth.util.quick_maths import bresenham
 from libf1tenth.util.transformations import to_homogenous
 
 
@@ -24,15 +24,17 @@ class Occupancies:
     - each layer contains a occupancy map with probability [0-1]
     
     Args:
-    - resolution: resolution of the occupancy grid
+    - resolution: resolution of the occupancy grid, meters per cell
     - x_size: number of cells in x direction
     - y_size: number of cells in y direction
     '''
     
-    def __init__(self, resolution, x_size, y_size):
+    def __init__(self, resolution, x_size, y_size, car_half_width=0.2):
         self.resolution = resolution
         self.x_size = x_size
         self.y_size = y_size
+        self.car_half_width = car_half_width
+        
         self.x_origin = 0.0
         self.y_origin = self.y_size * self.resolution / 2.0 # units: m
         
@@ -40,29 +42,21 @@ class Occupancies:
         
         self.layers = {}
         
-    @property
-    def _pc_to_grid(self):
-        '''
-        Returns transform from pointcloud x, y to grid x, y
-        
-        x_grid = x_pc + x_origin
-        y_grid = y_pc + y_origin
-        '''
-        return np.array([[1,0,self.x_origin],
+        self._pc_to_grid = np.array([[1,0,self.x_origin],
                          [0,1,self.y_origin],
                          [0,0,1]])
         
-    @property
-    def _grid_to_pc(self):
-        '''
-        Returns transform from grid x, y to pointcloud x, y
-        
-        x_pc = x_grid - x_origin
-        y_pc = y_grid - y_origin
-        '''
-        return np.array([[1,0,-self.x_origin],
+        self._grid_to_pc = np.array([[1,0,-self.x_origin],
                          [0,1,-self.y_origin],
                          [0,0,1]])
+        
+    def _create_valid_mask(self, x_idx, y_idx):
+        return np.logical_and.reduce([
+            x_idx >= 0,
+            x_idx < self.x_size,
+            y_idx >= 0,
+            y_idx < self.y_size,
+        ])
     
     def pc_to_grid_indices(self, x_pc: Union[float, np.ndarray], y_pc: Union[float, np.ndarray]):
         '''
@@ -83,6 +77,10 @@ class Occupancies:
             return xy_idx[0,0], xy_idx[0,1]
         
         return xy_idx[:,0], xy_idx[:,1]
+    
+    def pc_to_grid_index(self, x_pc, y_pc):
+        xy_idx = (self._pc_to_grid @ np.array([[x_pc],[y_pc],[1]]) / self.resolution).astype(int).reshape(-1)[:2]
+        return xy_idx[0], xy_idx[1]
     
     def grid_indices_to_pc(self, x_idx, y_idx):
         '''
@@ -140,15 +138,26 @@ class Occupancies:
         x_occ_idx, y_occ_idx = self.pc_to_grid_indices(x_pc, y_pc)
         
         # remove points that are out of bounds
-        valid_indices = ((x_occ_idx >= 0)
-                                & (x_occ_idx < self.x_size)
-                                & (y_occ_idx >= 0)
-                                & (y_occ_idx < self.y_size))
-        x_occ_idx = x_occ_idx[valid_indices]
-        y_occ_idx = y_occ_idx[valid_indices]
-        confidence = confidence[valid_indices]
+        valid_mask = self._create_valid_mask(x_occ_idx, y_occ_idx)
+        x_occ_idx = x_occ_idx[valid_mask]
+        y_occ_idx = y_occ_idx[valid_mask]
+        confidence = confidence[valid_mask]
 
         self.layers[layer_name]['occupancy'][x_occ_idx, y_occ_idx] = confidence
+        
+        # x from 0 to 0.3, y from -0.2 to 0.2 should be set to zero
+        x_ego = np.linspace(0, 0.3, 100)
+        y_ego = np.linspace(-0.2, 0.2, 100)
+        ego_x_idx, ego_y_idx = self.pc_to_grid_indices(x_ego, y_ego)
+        self.layers[layer_name]['occupancy'][ego_x_idx, ego_y_idx] = 0
+        
+    @staticmethod
+    def sphere(n):
+        struct = np.zeros((2 * n + 1, 2 * n + 1))
+        x, y = np.indices((2 * n + 1, 2 * n + 1))
+        mask = (x - n)**2 + (y - n)**2 <= n**2
+        struct[mask] = 1
+        return struct.astype(np.bool)
         
     def dilate_layer(self, layer_name, iterations=1):
         '''
@@ -162,13 +171,16 @@ class Occupancies:
         # set all values > 0.5 to 1 and all values <= 0.5 to 0
         occupancy = self.layers[layer_name]['occupancy']
         occupancy = (occupancy > 0.5).astype(float)
+        
+        n = int(self.car_half_width / self.resolution)
+        struct = self.sphere(n)
         self.layers[layer_name]['occupancy'] = binary_dilation(
-                                                    occupancy, 
+                                                    occupancy, structure=struct,
                                                     iterations=iterations).astype(float)
         
     def is_collision(self, layer_name, x_pc, y_pc):
         '''
-        Determines if the single given pointcloud location is collision free
+        Determines if the given pointcloud location(s) is collision free
         
         Args:
         - layer_name: name of the layer to check
@@ -179,12 +191,22 @@ class Occupancies:
         - is_collision: False if the point is collision free
         '''
         x_idx, y_idx = self.pc_to_grid_indices(x_pc, y_pc)
+        # remove indices that are out of bounds
+        # out of bounds means if either x or y is out of bounds
+        valid_mask = self._create_valid_mask(x_idx, y_idx)
+        x_idx = x_idx[valid_mask]
+        y_idx = y_idx[valid_mask]
+        
         is_collision = False
+        num_collision = 0
         if np.isscalar(x_pc):
             is_collision = self.layers[layer_name]['occupancy'][x_idx, y_idx] != 0
+            num_collision = 1 if is_collision else 0
         else:
-            is_collision = np.any(self.layers[layer_name]['occupancy'][x_idx, y_idx] != 0)
-        return is_collision
+            num_collision = np.count_nonzero(self.layers[layer_name]['occupancy'][x_idx, y_idx] != 0)
+            is_collision = num_collision > 0
+            
+        return is_collision, num_collision
         
     def check_line_collision(self, layer_name, x1, y1, x2, y2):
         '''
@@ -203,11 +225,14 @@ class Occupancies:
         
         occ_grid = self.layers[layer_name]['occupancy']
         
-        start_x_idx, start_y_idx = self.pc_to_grid_indices(x1, y1)
-        end_x_idx, end_y_idx = self.pc_to_grid_indices(x2, y2)
+        start_x_idx, start_y_idx = self.pc_to_grid_index(x1, y1)
+        end_x_idx, end_y_idx = self.pc_to_grid_index(x2, y2)
         
         # convert line segment to grid indices using Bresenham's algorithm
         x_indices, y_indices = bresenham(start_x_idx, start_y_idx, end_x_idx, end_y_idx)
+        valid_mask = self._create_valid_mask(x_indices, y_indices)
+        x_indices = x_indices[valid_mask]
+        y_indices = y_indices[valid_mask]
         # check if any of the line segment points are occupied
         is_collision = not np.all(occ_grid[x_indices, y_indices] == 0)
 

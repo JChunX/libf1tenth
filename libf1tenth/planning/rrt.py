@@ -1,4 +1,5 @@
 import numpy as np
+import math
 from numba import njit
 
 from libf1tenth.planning.graph import PlanGraph, PlanNode
@@ -10,7 +11,12 @@ class RRTPlanner(PathPlanner):
     '''
     RRT planner
     '''
-    def __init__(self, search_radius, max_iterations, expansion_distance, goal_threshold, occ_grid_layer='laser'):
+    def __init__(self, search_radius, 
+                 max_iterations, 
+                 expansion_distance, 
+                 goal_threshold, 
+                 occ_grid_layer='laser',
+                 logger=None):
         '''
         search_radius: radius of the search circle
         max_iterations: maximum number of iterations
@@ -30,6 +36,7 @@ class RRTPlanner(PathPlanner):
         self.is_goal_reached = False
         
         self.occ_grid_layer = occ_grid_layer
+        self.logger = logger
         
         
     def plan(self, waypoints, occupancy_grid, pose, start_pos=(0.,0.)):
@@ -43,7 +50,6 @@ class RRTPlanner(PathPlanner):
         - start_pos: starting position in the ego frame, default is (0,0)
         '''
         
-
         self.waypoints = waypoints
         self.occupancy_grid = occupancy_grid
         lookahead = self.occupancy_grid.lookahead_distance
@@ -81,7 +87,7 @@ class RRTPlanner(PathPlanner):
         
         return self.is_goal_reached
             
-    def get_rrt_waypoints(self, pose, velocity=0.5, logger=None):
+    def get_rrt_waypoints(self, pose, velocity=0.5):
         '''
         Get the planned waypoints in the global frame.
         
@@ -171,7 +177,7 @@ class RRTPlanner(PathPlanner):
         sampled_node.y = sampled_node_y
         
     @staticmethod
-    @njit
+    @njit(cache=True, fastmath=True)
     def _steer_helper(nearest_node_x, nearest_node_y, sampled_node_x, sampled_node_y, expansion_distance):
         '''
         dirn = np.array(randvex) - np.array(nearvex)
@@ -183,7 +189,7 @@ class RRTPlanner(PathPlanner):
         '''
         
         dirn = np.array([sampled_node_x, sampled_node_y]) - np.array([nearest_node_x, nearest_node_y])
-        length = np.linalg.norm(dirn)
+        length = math.sqrt(dirn[0]**2 + dirn[1]**2)
         dirn = (dirn / length) * min (expansion_distance, length)
         
         sampled_node_x = nearest_node_x + dirn[0]
