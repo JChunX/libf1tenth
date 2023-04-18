@@ -44,6 +44,8 @@ class LateralLQRController(LateralController):
         
         self.dt = DerivativeFilter()
         self.prev_time = None
+        
+        self.next_pred_state = None
     
     def _compute_control_points(self, pose, waypoints):
         '''
@@ -109,6 +111,8 @@ class LateralLQRController(LateralController):
         state[1][0] = self.d_crosstrack_error.get_value() / dt
         state[2][0] = self.theta_e
         state[3][0] = self.d_theta_e.get_value() / dt
+        
+        self.next_pred_state = (Ad @ state) + (Bd @ np.array([[0.0]]))
         
         steer_angle_feedback = (K @ state)[0][0]
 

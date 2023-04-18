@@ -58,6 +58,7 @@ class Map:
         plt.figure()
         print(self.image)
         plt.imshow(self.image, cmap='gray')
+        plt.show()
         
     def show_coordinates(self, xs_cart, ys_cart, color=None, size=600):
         '''
@@ -135,3 +136,16 @@ class Map:
         y_pixel = self.height - np.round((y - self.origin[1]) / self.resolution).astype(int)
         
         return x_pixel, y_pixel
+    
+    def pixel_to_cartesian(self, x_pixel, y_pixel):
+        '''
+        Converts pixel coordinates to cartesian coordinates
+        
+        Args:
+        - x_pixel: ndarray of x coordinates
+        - y_pixel: ndarray of y coordinates
+        '''
+        x = x_pixel * self.resolution + self.origin[0]
+        y = (self.height - y_pixel) * self.resolution + self.origin[1]
+        
+        return x, y

@@ -29,6 +29,15 @@ class FrenetFrame:
         self.cs_syaw = CubicSpline(self.s, self.yaw)
         self.cs_sk = CubicSpline(self.s, self.curvature)
         
+    def wrap(self, s):
+        '''
+        Wraps path progress to [0, s_max]
+        
+        Args:
+        - s: path progress, ndarray or float
+        '''
+        return s % self.s_max
+        
     def wrapped_diff(self, s0, s1):
         '''
         Calculate progress difference between two points
@@ -87,17 +96,33 @@ class FrenetFrame:
         - x: x coordinate, ndarray or float
         - y: y coordinate, ndarray or float
         '''
-        return self.frenet_to_cartesian_numba(s, d, self.s, self.x, self.y, self.yaw)
+        is_scalar = np.isscalar(s)
+        if is_scalar:
+            s = np.array([s])
+            d = np.array([d])
+        
+        x_cart, y_cart = self.frenet_to_cartesian_numba(s, d, self.s, self.x, self.y, self.yaw)
+        
+        if is_scalar:
+            x_cart = x_cart[0]
+            y_cart = y_cart[0]
+            
+        return x_cart, y_cart
     
     @staticmethod
     @njit(cache=True, fastmath=True)  
     def frenet_to_cartesian_numba(s0, d0, s, x, y, yaw):
-        idx = np.argmin(np.abs(s - s0))
-        x_interp = x[idx]
-        y_interp = y[idx]
-        yaw_interp = yaw[idx]
-        x_cart = x_interp - d0 * np.sin(yaw_interp)
-        y_cart = y_interp + d0 * np.cos(yaw_interp)
+            
+        x_cart = np.zeros_like(s0)
+        y_cart = np.zeros_like(s0)
+        for i in range(len(s0)):
+            idx = np.argmin(np.abs(s - s0[i]))
+            x_interp = x[idx]
+            y_interp = y[idx]
+            yaw_interp = yaw[idx]
+            x_cart[i] = x_interp - d0[i] * np.sin(yaw_interp)
+            y_cart[i] = y_interp + d0[i] * np.cos(yaw_interp)
+            
         return x_cart, y_cart
     
     def cartesian_to_frenet(self, x, y):
