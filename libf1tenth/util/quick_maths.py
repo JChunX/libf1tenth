@@ -169,6 +169,12 @@ def linearized_discrete_lateral_dynamics(velocity, state_size, timestep, wheelba
 
     #Initialization of the time discrete A matrix
     Ad = np.zeros((state_size, state_size))
+    
+    # A matrix:
+    # [1, 0, 0, 0],
+    # [0, dt,0, 0],
+    # [0, 0, v, 0],
+    # [0, 0, 1,dt]
 
     Ad[0][0] = 1.0
     Ad[0][1] = timestep
@@ -176,7 +182,11 @@ def linearized_discrete_lateral_dynamics(velocity, state_size, timestep, wheelba
     Ad[2][2] = 1.0
     Ad[2][3] = timestep
 
-    # b = [0.0, 0.0, 0.0, v / L].T
+    # b matrix:
+    # [0.0, 
+    #  0.0, 
+    #  0.0, 
+    #  v / L]
     Bd = np.zeros((state_size, 1))  # time discrete b matrix
     Bd[3][0] = velocity / wheelbase
 
