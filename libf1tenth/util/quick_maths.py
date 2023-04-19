@@ -150,7 +150,7 @@ def solve_lqr(A, B, Q, R, tolerance, max_num_iteration):
     return K
 
 @njit(cache=True, fastmath=True)
-def update_matrix(velocity, state_size, timestep, wheelbase):
+def linearized_discrete_lateral_dynamics(velocity, state_size, timestep, wheelbase):
     '''
     Calculate A and b matrices of linearized, discrete system.
 

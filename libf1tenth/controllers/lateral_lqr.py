@@ -13,7 +13,7 @@ import numpy as np
 from libf1tenth.controllers import LateralController
 from libf1tenth.filter import DerivativeFilter
 from libf1tenth.planning.pose import Pose
-from libf1tenth.util.quick_maths import nearest_point, solve_lqr, update_matrix
+from libf1tenth.util.quick_maths import nearest_point, solve_lqr, linearized_discrete_lateral_dynamics
 from typing import List
 
 class LateralLQRController(LateralController):
@@ -45,7 +45,7 @@ class LateralLQRController(LateralController):
         self.dt = DerivativeFilter()
         self.prev_time = None
         
-        self.next_pred_state = None
+        self.next_pred_state = np.zeros((4, 1))
     
     def _compute_control_points(self, pose, waypoints):
         '''
@@ -103,7 +103,7 @@ class LateralLQRController(LateralController):
             dt = self.dt.get_value()
 
         state_size = 4
-        Ad, Bd = update_matrix(pose.velocity, state_size, dt, self.wheelbase)
+        Ad, Bd = linearized_discrete_lateral_dynamics(pose.velocity, state_size, dt, self.wheelbase)
         K = solve_lqr(Ad, Bd, self.Q, self.R, self.eps, self.iterations)
 
         state = np.zeros((state_size, 1))
@@ -112,9 +112,9 @@ class LateralLQRController(LateralController):
         state[2][0] = self.theta_e
         state[3][0] = self.d_theta_e.get_value() / dt
         
-        self.next_pred_state = (Ad @ state) + (Bd @ np.array([[0.0]]))
-        
         steer_angle_feedback = (K @ state)[0][0]
+        pred_state_error = self.next_pred_state - state
+        self.next_pred_state = (Ad @ state) + (Bd * steer_angle_feedback)
 
         #Compute feed forward control term to decrease the steady error.
         steer_angle_feedforward = self.kappa_ref * self.wheelbase
@@ -122,4 +122,5 @@ class LateralLQRController(LateralController):
         # Calculate final steering angle in [rad]
         steer_angle = steer_angle_feedback + steer_angle_feedforward
         steer_angle = self._safety_bound(steer_angle)
-        return steer_angle, waypoints[self.nearest_idx]
+        
+        return steer_angle, waypoints[self.nearest_idx], pred_state_error.flatten(), state.flatten()

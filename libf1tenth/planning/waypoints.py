@@ -113,6 +113,29 @@ class Waypoints:
                           self.velocity[:,None],
                           self.yaw[:,None],
                           self.curvature[:,None])) # (N, 5)
+        
+    @staticmethod
+    def num_collisions(x, y, pose, occupancy_grid):
+        '''
+        Checks num. of waypoints is in collision with the occupancy grid.
+        
+        Args:
+        - x (np.ndarray): x in global frame
+        - y (np.ndarray): y in global frame
+        - pose (Pose): current pose
+        - occupancy_grid (Occupancies): occupancy grid
+        
+        Returns:
+        - num_collisions: number of waypoints in collision
+        '''
+        positions = np.vstack((x, 
+                               y))
+        positions_local = pose.global_position_to_pose_frame(positions)
+        
+        _, num_collisions = occupancy_grid.is_collision(
+            'laser', positions_local[0,:], positions_local[1,:])
+        
+        return num_collisions
     
     def __getitem__(self, idx):
         return (self.x[idx], 

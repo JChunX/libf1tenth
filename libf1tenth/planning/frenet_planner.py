@@ -59,24 +59,7 @@ class FrenetPath:
         self.cf = cf
         
     def num_collisions(self, pose, occupancy_grid):
-        '''
-        Checks num. of waypoints is in collision with the occupancy grid.
-        
-        Args:
-        - pose: Pose object
-        - occupancy_grid: Occupancies object
-        
-        Returns:
-        - num_collisions: number of waypoints in collision
-        '''
-        
-        positions = np.vstack((self.x, self.y))
-        positions_local = pose.global_position_to_pose_frame(positions)
-            
-        _, num_collisions = occupancy_grid.is_collision(
-            'laser', positions_local[0,:], positions_local[1,:])
-        
-        return num_collisions
+        return Waypoints.num_collisions(self.x, self.y, pose, occupancy_grid)
     
     def to_waypoints(self):
         '''
@@ -90,8 +73,7 @@ class FrenetPlanner(PathPlanner):
     '''
     FrenetPlanner plans a path using the Frenet frame while avoiding obstacles.
     '''
-    def __init__(self, waypoints, left_lim=0.8, right_lim=0.8, lane_width=0.1, 
-                                  t_min=2.0, t_max=2.0, t_step=0.1, dt=0.3, logger=None):
+    def __init__(self, waypoints, left_lim=0.4, right_lim=0.4, lane_width=0.4, t_step=0.1, dt=0.2, logger=None):
         '''
         Initializes the frenet planner with waypoints and a frenet frame
         
@@ -100,9 +82,6 @@ class FrenetPlanner(PathPlanner):
         - left_lim: left limit of the track in meters
         - right_lim: right limit of the track in meters
         - lane_width: width of a lane in meters
-        - t_min: minimum time to reach the goal
-        - t_max: maximum time to reach the goal
-        - t_step: time step for discretizing the goal
         - dt: time step for discretizing the path
         '''
         super().__init__()
@@ -112,9 +91,7 @@ class FrenetPlanner(PathPlanner):
         self.left_lim = left_lim
         self.right_lim = right_lim
         self.lane_width = lane_width
-        self.t_min = t_min
-        self.t_max = t_max
-        self.t_step = t_step
+
         self.dt = dt
         
         self.max_speed = 15.0
@@ -156,29 +133,37 @@ class FrenetPlanner(PathPlanner):
                     or self.current_path.num_collisions(pose, occupancy_grid) > 0):
                 self.current_path = best_path
                 self.plan_time = time.time()
-        else:
-            self.logger.info('No valid paths found')
+        #else:
+            #self.logger.info('No valid paths found')
                 
         if self.current_path is None:
             return None, None, False
 
         return self.current_path.to_waypoints(), [path.to_waypoints() for path in frenet_paths], True
     
+    def _augment_t(self, s0_dot):
+        # augment t by s0_dot
+        if s0_dot < 1.0:
+            t_plan = 3.0
+        else:
+            t_plan = 4.0 / s0_dot
+            
+        return t_plan
+    
     def _generate_frenet_paths(self, s0, s0_dot, s0_ddot, d0, d0_dot, d0_ddot, pose, occupancy_grid):
         
         frenet_paths = []
         costs = []
         
-        if s0_dot < 1.0:
-            t_plan = 3.0
-        else:
-            t_plan = 4.0 / s0_dot
+        t_plan = self._augment_t(s0_dot)
+        
         t_min = t_plan
         t_max = t_plan
         t_step = t_plan / 50.0
         
         for d_target in np.arange(-self.right_lim, self.left_lim+0.01, self.lane_width):
-            d_target += np.random.uniform(-self.lane_width/2.0, self.lane_width/2.0)
+            #d_target += np.random.uniform(-self.lane_width/2.0, self.lane_width/2.0)
+
             for t_target in np.arange(t_min, t_max+0.01, t_step):
                 lateral_poly = QuinticPolynomial(d0, d0_dot, d0_ddot, d_target, 0.0, 0.0, t_target)
     
@@ -204,10 +189,10 @@ class FrenetPlanner(PathPlanner):
                 
                 # square of jerk
                 Jd = sum(np.power(d_ddd, 2))  
-                Js = sum(np.power(s_ddd, 2))
+                #Js = sum(np.power(s_ddd, 2))
                 
                 cd = K_J * Jd + K_T * t_target + K_D * np.sum(frenet_path.d**2)
-                cv = K_J * Js + K_T * t_target + K_S * self.frenet_frame.wrapped_diff(s0, frenet_path.s[-1])**2
+                cv = K_T * t_target + K_S * self.frenet_frame.wrapped_diff(s0, frenet_path.s[-1])**2
                 cf = K_LAT * cd + K_LON * cv
                 
                 frenet_path.finalize(d_d, d_dd, d_ddd, s_d, s_dd, s_ddd, cd, cv, cf)
@@ -352,7 +337,7 @@ class FrenetRRTStarPlanner(RRTPlanner):
         waypoints_to_track = np.hstack((positions_to_track, 
                                         velocity * np.ones((positions_to_track.shape[0], 1))))
         
-        waypoints = Waypoints.from_numpy(waypoints_to_track).upsample(10)#.smooth(1)
+        waypoints = Waypoints.from_numpy(waypoints_to_track)#.upsample(10)#.smooth(1)
         
         return waypoints
             
