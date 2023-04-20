@@ -33,9 +33,9 @@ class LateralLQRController(LateralController):
         
         self.crosstrack_error = 0.0
         self.theta_e = 0.0
-        self.d_crosstrack_error = DerivativeFilter()
+        self.d_crosstrack_error = DerivativeFilter(buffer_size=5)
         self.d_crosstrack_error.update(0.0)
-        self.d_theta_e = DerivativeFilter()
+        self.d_theta_e = DerivativeFilter(buffer_size=5)
         self.d_theta_e.update(0.0)
         
         self.nearest_idx = 0
@@ -63,7 +63,7 @@ class LateralLQRController(LateralController):
         - nearest_idx: Index of the nearest waypoint (int)
         '''
         position, theta = pose.position, pose.theta
-        front_axle_position = position + self.wheelbase * np.array([math.cos(theta), math.sin(theta)])
+        front_axle_position = position + (self.wheelbase + 0.1) * np.array([math.cos(theta), math.sin(theta)])
         nearest_idx = nearest_point(front_axle_position[0], front_axle_position[1], waypoints)
         front_axle_pose = Pose.from_position_theta(front_axle_position[0], 
                                                    front_axle_position[1], 
@@ -120,7 +120,7 @@ class LateralLQRController(LateralController):
         steer_angle_feedforward = self.kappa_ref * self.wheelbase
 
         # Calculate final steering angle in [rad]
-        steer_angle = steer_angle_feedback + steer_angle_feedforward
+        steer_angle = steer_angle_feedback + 0.8 * steer_angle_feedforward
         steer_angle = self._safety_bound(steer_angle)
         
         return steer_angle, waypoints[self.nearest_idx], pred_state_error.flatten(), state.flatten()

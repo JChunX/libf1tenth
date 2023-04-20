@@ -149,6 +149,50 @@ def solve_lqr(A, B, Q, R, tolerance, max_num_iteration):
 
     return K
 
+params = {
+    "mu": 1.0489,
+    "C_Sf": 4.718,
+    "C_Sr": 5.4562,
+    "lf": 0.15875,
+    "lr": 0.17145,
+    "h": 0.074,
+    "m": 3.74,
+    "I_z": 0.04712,
+    "s_min": -0.4189,
+    "s_max": 0.4189,
+    "sv_min": -0.6,
+    "sv_max": 0.6,
+    "v_switch": 7.319,
+    "a_max": 9.51,
+    "v_min": -5.0,
+    "v_max": 20.0,
+    "width": 0.31,
+    "length": 0.58
+}
+
+mu = params["mu"]
+C_Sf = params["C_Sf"]
+C_Sr = params["C_Sr"]
+lf = params["lf"]
+lr = params["lr"]
+h = params["h"]
+m = params["m"]
+I_z = params["I_z"]
+s_min = params["s_min"]
+s_max = params["s_max"]
+sv_min = params["sv_min"]
+sv_max = params["sv_max"]
+v_switch = params["v_switch"]
+a_max = params["a_max"]
+v_min = params["v_min"]
+v_max = params["v_max"]
+width = params["width"]
+length = params["length"]
+
+sig_1 = 2.0 * (C_Sf + C_Sr)
+sig_2 = -2.0 * (C_Sf * lf - C_Sr * lr)
+sig_3 = -2.0 * (C_Sf * lf**2 + C_Sr * lr**2)
+
 @njit(cache=True, fastmath=True)
 def linearized_discrete_lateral_dynamics(velocity, state_size, timestep, wheelbase):
     '''
@@ -170,17 +214,28 @@ def linearized_discrete_lateral_dynamics(velocity, state_size, timestep, wheelba
     #Initialization of the time discrete A matrix
     Ad = np.zeros((state_size, state_size))
     
-    # A matrix:
-    # [1, 0, 0, 0],
-    # [0, dt,0, 0],
-    # [0, 0, v, 0],
-    # [0, 0, 1,dt]
-
-    Ad[0][0] = 1.0
-    Ad[0][1] = timestep
-    Ad[1][2] = velocity
-    Ad[2][2] = 1.0
-    Ad[2][3] = timestep
+    if velocity < 1.0:
+    
+        # A kinematic matrix:
+        # [1, dt, 0, 0],
+        # [0, 0,  v, 0],
+        # [0, 0,  1, dt],
+        # [0, 0,  0, 0]
+        Ad[0][0] = 1.0
+        Ad[0][1] = timestep
+        Ad[1][2] = velocity
+        Ad[2][2] = 1.0
+        Ad[2][3] = timestep
+        
+    else:
+        # https://shbing.github.io/papers/first-author/J7_Design-Analysis-and-Experiments-of-Preview-Path-Tracking-Control-for-Autonomous-Vehicles.pdf
+        A = np.array([[0.0, 1.0, 0.0, 0.0],
+                    [0.0, -sig_1/(m*velocity), sig_1/m, sig_2/(m*velocity)],
+                    [0.0, 0.0, 0.0, 1.0],
+                    [0.0, sig_2/(I_z*velocity), -sig_2/I_z, sig_3/(I_z*velocity)]
+                ])
+        
+        Ad = np.eye(4) + timestep * A
 
     # b matrix:
     # [0.0, 
