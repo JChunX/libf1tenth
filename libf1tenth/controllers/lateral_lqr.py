@@ -18,28 +18,33 @@ from typing import List
 
 class LateralLQRController(LateralController):
     def __init__(self, 
-                 Q_slow: List[float]=[1.0, 0.95, 0.0066, 0.0257], 
-                 Q_fast: List[float]=[1.0, 0.95, 0.0066, 0.0257],
+                 control_vels: List[float]=[3.0, 3.5, 4.0, 5.0],
+                 Qs = [[0.3,0.01,0.001,0.022],
+                       [0.45,0.01,0.001,0.022],
+                       [0.55,0.01,0.001,0.046],
+                       [0.55,0.01,0.001,0.046]],
+                 lookaheads = [0.2,0.3,0.35, 0.4],
                  R: List[float]=[0.0062], 
                  iterations: int=50, 
                  eps: float=0.01, 
                  wheelbase: float=0.33,
-                 lookahead: float=0.05):
+                 lookahead_slow: float=0.3,
+                 lookahead_fast: float=0.5):
         super().__init__()
         
-        self.Q_slow = np.diag(Q_slow)
-        self.Q_fast = np.diag(Q_fast)
         self.R = np.diag(R)
         self.iterations = iterations
         self.eps = eps
+        self.control_vels = control_vels
+        self.Qs = np.array(Qs)
         
         self.wheelbase = wheelbase
         
         self.crosstrack_error = 0.0
         self.theta_e = 0.0
-        self.d_crosstrack_error = DerivativeFilter(buffer_size=3)
+        self.d_crosstrack_error = DerivativeFilter(buffer_size=4)
         self.d_crosstrack_error.update(0.0)
-        self.d_theta_e = DerivativeFilter(buffer_size=3)
+        self.d_theta_e = DerivativeFilter(buffer_size=4)
         self.d_theta_e.update(0.0)
         
         self.nearest_idx = 0
@@ -50,7 +55,7 @@ class LateralLQRController(LateralController):
         self.prev_time = None
         
         self.next_pred_state = np.zeros((4, 1))
-        self.lookahead = lookahead
+        self.lookaheads = lookaheads
     
     def _compute_control_points(self, pose, waypoints):
         '''
@@ -83,7 +88,31 @@ class LateralLQRController(LateralController):
         return theta_e, crosstrack_error, theta_ref, kappa_ref, nearest_idx
     
     def get_lookahead(self, velocity):
-        return self.lookahead
+        if velocity < self.control_vels[0]:
+            return self.lookaheads[0]
+        if velocity > self.control_vels[1]:
+            return self.lookaheads[1]
+        
+        return np.interp(velocity, self.control_vels, self.lookaheads)
+        
+    def get_Q(self, velocity):
+        # interpolated q1, q2, q3, q4, then construct diag matrix
+        if velocity < self.control_vels[0]:
+            return np.diag(self.Qs[0])
+        if velocity > self.control_vels[1]:
+            return np.diag(self.Qs[1])
+        
+        q1s = self.Qs[:,0]
+        q2s = self.Qs[:,1]
+        q3s = self.Qs[:,2]
+        q4s = self.Qs[:,3]
+        
+        q1 = np.interp(velocity, self.control_vels, q1s)
+        q2 = np.interp(velocity, self.control_vels, q2s)
+        q3 = np.interp(velocity, self.control_vels, q3s)
+        q4 = np.interp(velocity, self.control_vels, q4s)
+        
+        return np.diag([q1, q2, q3, q4])
     
     def get_steering_angle(self, pose, waypoints):
         '''
@@ -113,12 +142,9 @@ class LateralLQRController(LateralController):
 
         state_size = 4
         Ad, Bd = linearized_discrete_lateral_dynamics(pose.velocity, state_size, dt, self.wheelbase)
-        if pose.velocity > 5.0:
-            Q = self.Q_fast
-        else:
-            Q = self.Q_slow
-            
-        Q = self.get_Q(pose.velocity)
+        
+        Q = self.get_Q()
+
         K = solve_lqr(Ad, Bd, Q, self.R, self.eps, self.iterations)
 
         state = np.zeros((state_size, 1))

@@ -3,15 +3,19 @@ from libf1tenth.filter import DerivativeFilter, MovingAverageFilter
 from libf1tenth.controllers import LongitudinalController
 
 class PDSpeedController(LongitudinalController):
-    def __init__(self, k_p=1.0, k_d=0.0, buffer_size=5):
+    def __init__(self, k_p=1.0, k_d=0.0, 
+                 k_p_brake=3.0, k_d_brake=0.0,
+                 buffer_size=5):
         self.k_p = k_p
         self.k_d = k_d
+        self.k_p_brake = k_p_brake
+        self.k_d_brake = k_d_brake
         self.error_derivative_filter = DerivativeFilter(buffer_size=buffer_size)
         self.error_filter = MovingAverageFilter(buffer_size=buffer_size)
         
     def augment_k(self, error):
         if error < 0: # if slowing down..
-            return 1.4, 0.3 # 1.2 + 0.3
+            return self.k_p_brake, self.k_d_brake
         else:
             return self.k_p, self.k_d
 
