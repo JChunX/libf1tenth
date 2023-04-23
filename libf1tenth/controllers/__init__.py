@@ -1,6 +1,6 @@
 from .lateral_controller import LateralController
 from .longitudinal_controller import LongitudinalController
-
+from .cruise_controller import CruiseController
 from .stanley import StanleyController
 from .lateral_lqr import LateralLQRController
 from .pure_pursuit import PurePursuitController

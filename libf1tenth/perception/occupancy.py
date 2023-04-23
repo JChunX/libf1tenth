@@ -29,7 +29,7 @@ class Occupancies:
     - y_size: number of cells in y direction
     '''
     
-    def __init__(self, resolution, x_size, y_size, car_half_width=0.2):
+    def __init__(self, resolution, x_size, y_size, car_half_width=0.15):
         self.resolution = resolution
         self.x_size = x_size
         self.y_size = y_size
@@ -178,7 +178,7 @@ class Occupancies:
                                                     occupancy, structure=struct,
                                                     iterations=iterations).astype(float)
         
-    def is_collision(self, layer_name, x_pc, y_pc):
+    def check_collisions(self, layer_name, x_pc, y_pc):
         '''
         Determines if the given pointcloud location(s) is collision free
         
@@ -190,23 +190,28 @@ class Occupancies:
         Returns:
         - is_collision: False if the point is collision free
         '''
+        if np.isscalar(x_pc):
+            x_pc = np.array([x_pc])
+            y_pc = np.array([y_pc])
+            
+        indices = np.arange(x_pc.shape[0])
+        
         x_idx, y_idx = self.pc_to_grid_indices(x_pc, y_pc)
+
         # remove indices that are out of bounds
         # out of bounds means if either x or y is out of bounds
         valid_mask = self._create_valid_mask(x_idx, y_idx)
         x_idx = x_idx[valid_mask]
         y_idx = y_idx[valid_mask]
-        
-        is_collision = False
-        num_collision = 0
-        if np.isscalar(x_pc):
-            is_collision = self.layers[layer_name]['occupancy'][x_idx, y_idx] != 0
-            num_collision = 1 if is_collision else 0
-        else:
-            num_collision = np.count_nonzero(self.layers[layer_name]['occupancy'][x_idx, y_idx] != 0)
-            is_collision = num_collision > 0
+        indices = indices[valid_mask]
+
+        occ_bool = self.layers[layer_name]['occupancy'][x_idx, y_idx] != 0 # shape: (num_points, )
+        num_collision = np.count_nonzero(occ_bool)
+        collision_x = x_pc[indices[occ_bool]].reshape(-1, 1)
+        collision_y = y_pc[indices[occ_bool]].reshape(-1, 1)
+        collision_locs = np.hstack((collision_x, collision_y))
             
-        return is_collision, num_collision
+        return num_collision, collision_locs
         
     def check_line_collision(self, layer_name, x1, y1, x2, y2):
         '''

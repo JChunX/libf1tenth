@@ -59,7 +59,8 @@ class FrenetPath:
         self.cf = cf
         
     def num_collisions(self, pose, occupancy_grid):
-        return Waypoints.num_collisions(self.x, self.y, pose, occupancy_grid)
+        num_collisions, _ = Waypoints.check_collisions(self.x, self.y, pose, occupancy_grid)
+        return num_collisions
     
     def to_waypoints(self):
         '''
@@ -161,7 +162,7 @@ class FrenetPlanner(PathPlanner):
         t_max = t_plan
         t_step = t_plan / 50.0
         
-        for d_target in np.arange(-self.right_lim, self.left_lim+0.01, self.lane_width):
+        for d_target in [-self.right_lim, self.left_lim]:#np.arange(-self.right_lim, self.left_lim+0.01, self.lane_width):
             #d_target += np.random.uniform(-self.lane_width/2.0, self.lane_width/2.0)
 
             for t_target in np.arange(t_min, t_max+0.01, t_step):
