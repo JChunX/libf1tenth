@@ -18,18 +18,17 @@ from typing import List
 
 class LateralLQRController(LateralController):
     def __init__(self, 
-                 control_vels: List[float]=[3.0, 3.5, 4.0, 5.0],
+                 control_vels: List[float]=[3.0, 3.5, 4.0, 5.0, 6.0],
                  Qs = [[0.3,0.01,0.001,0.022],
                        [0.45,0.01,0.001,0.022],
                        [0.55,0.01,0.001,0.046],
+                       [0.55,0.01,0.001,0.046],
                        [0.55,0.01,0.001,0.046]],
-                 lookaheads = [0.2,0.3,0.35, 0.4],
+                 lookaheads = [0.05,0.2,0.31,0.31,0.31],
                  R: List[float]=[0.0062], 
                  iterations: int=50, 
                  eps: float=0.01, 
-                 wheelbase: float=0.33,
-                 lookahead_slow: float=0.3,
-                 lookahead_fast: float=0.5):
+                 wheelbase: float=0.33):
         super().__init__()
         
         self.R = np.diag(R)
@@ -42,9 +41,9 @@ class LateralLQRController(LateralController):
         
         self.crosstrack_error = 0.0
         self.theta_e = 0.0
-        self.d_crosstrack_error = DerivativeFilter(buffer_size=4)
+        self.d_crosstrack_error = DerivativeFilter(buffer_size=5)
         self.d_crosstrack_error.update(0.0)
-        self.d_theta_e = DerivativeFilter(buffer_size=4)
+        self.d_theta_e = DerivativeFilter(buffer_size=5)
         self.d_theta_e.update(0.0)
         
         self.nearest_idx = 0
@@ -56,6 +55,7 @@ class LateralLQRController(LateralController):
         
         self.next_pred_state = np.zeros((4, 1))
         self.lookaheads = lookaheads
+        self.angle_k_d = 0.0
     
     def _compute_control_points(self, pose, waypoints):
         '''
@@ -92,8 +92,9 @@ class LateralLQRController(LateralController):
             return self.lookaheads[0]
         if velocity > self.control_vels[1]:
             return self.lookaheads[1]
-        
-        return np.interp(velocity, self.control_vels, self.lookaheads)
+        lookahead = np.interp(velocity, self.control_vels, self.lookaheads)
+
+        return lookahead
         
     def get_Q(self, velocity):
         # interpolated q1, q2, q3, q4, then construct diag matrix
@@ -136,14 +137,16 @@ class LateralLQRController(LateralController):
         self.d_crosstrack_error.update(self.crosstrack_error)
         self.d_theta_e.update(self.theta_e)
         
-        dt = 0.01
+       
         if self.dt.is_ready():
             dt = self.dt.get_value()
+            
+        dt = 0.02
 
         state_size = 4
         Ad, Bd = linearized_discrete_lateral_dynamics(pose.velocity, state_size, dt, self.wheelbase)
         
-        Q = self.get_Q()
+        Q = self.get_Q(pose.velocity)
 
         K = solve_lqr(Ad, Bd, Q, self.R, self.eps, self.iterations)
 
@@ -153,6 +156,13 @@ class LateralLQRController(LateralController):
         state[2][0] = self.theta_e
         state[3][0] = self.d_theta_e.get_value() / dt
         
+        state[1][0] = state[1][0] * 0.5
+        state[3][0] = state[3][0] * 0.5
+         
+        # clip derivatives
+        state[1][0] = np.clip(state[1][0], -1.0, 1.0)
+        state[3][0] = np.clip(state[3][0], -1.0, 1.0)
+        
         steer_angle_feedback = (K @ state)[0][0]
         pred_state_error = self.next_pred_state - state
         self.next_pred_state = (Ad @ state) + (Bd * steer_angle_feedback)
@@ -161,7 +171,8 @@ class LateralLQRController(LateralController):
         steer_angle_feedforward = self.kappa_ref * self.wheelbase
 
         # Calculate final steering angle in [rad]
-        steer_angle = steer_angle_feedback + 1.0 * steer_angle_feedforward
-        steer_angle = self._safety_bound(steer_angle)
-        
-        return steer_angle, waypoints[self.nearest_idx], pred_state_error.flatten(), state.flatten()
+        steer_angle = steer_angle_feedback + 1.2 * steer_angle_feedforward
+        + self.angle_k_d * state[1][0]
+        #steer_angle = self._safety_bound(steer_angle)
+
+        return steer_angle, waypoints[self.nearest_idx], pred_state_error.flatten(), state.flatten(), self.angle_k_d * state[1][0]
