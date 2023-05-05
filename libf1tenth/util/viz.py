@@ -17,7 +17,7 @@ def make_delete_all_markers_msg():
     delete_all_msg.markers.append(marker)
     return delete_all_msg
 
-def to_waypoint_target_viz_msg(waypoint_position):
+def to_waypoint_target_viz_msg(waypoint_position, clr='g'):
     '''
     Creates a Marker message for visualization of waypoint target
     
@@ -27,6 +27,7 @@ def to_waypoint_target_viz_msg(waypoint_position):
     Returns:
     - waypoint_target_visualize_message: Marker message
     '''
+        
     marker = Marker()
     marker.header.frame_id = "/map"
     marker.type = marker.SPHERE
@@ -34,9 +35,18 @@ def to_waypoint_target_viz_msg(waypoint_position):
     marker.scale.x = 0.1
     marker.scale.y = 0.1
     marker.scale.z = 0.1
-    marker.color.r = 0.
-    marker.color.g = 255.
-    marker.color.b = 0.
+    if clr == 'r':
+        marker.color.r = 255.
+        marker.color.g = 0.
+        marker.color.b = 0.
+    elif clr == 'g':
+        marker.color.r = 0.
+        marker.color.g = 255.
+        marker.color.b = 0.
+    else:
+        marker.color.r = 0.
+        marker.color.g = 0.
+        marker.color.b = 255.
     marker.color.a = 255.
     marker.pose.orientation.w = 1.0
     marker.pose.position.x = float(waypoint_position[0])
