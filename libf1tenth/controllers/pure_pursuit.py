@@ -1,90 +1,74 @@
-import numpy as np
-from libf1tenth.controllers import LateralController
+import math
+import time
 
+import numpy as np
+
+from libf1tenth.controllers import LateralController
+from libf1tenth.filter import DerivativeFilter
+from libf1tenth.planning.pose import Pose
+from libf1tenth.util.quick_maths import nearest_point
 
 class PurePursuitController(LateralController):
     
-    def __init__(self, K, lookahead, K_thresh=4.0, alpha=0.1, beta=0.7, max_speed=15.0):
+    def __init__(self, lookahead, kd_theta: float=0.1, wheelbase: float=0.33, buffer_size: int=5):
         '''
         pure persuit controller
         
-        K: proportional gain
         lookahead: waypoint lookahead 
-        K_thresh: velocity at which K starts changing
-        alpha: lookahead augmentation slope
-        beta: K augmentation slope
-        max_speed: maximum valid speed
+        kd_theta: gain for heading error
+        wheelbase: wheelbase of the vehicle
+
+        modified: CV
         '''
         super().__init__()
-        self.K = K
-        self.K_thresh = K_thresh
-        self.base_lookahead = lookahead
-        self.lookahead = self.base_lookahead
-        self.alpha = alpha
-        self.beta = beta
-        self.max_speed = max_speed
-        self.prev_velocity = 0.0
+        self.lookahead = lookahead
+        self.kd_theta = kd_theta
+        self.wheelbase = wheelbase
+        self.theta_error_derivative_filter = DerivativeFilter(buffer_size=buffer_size)
         
     def _find_waypoint_to_track(self, pose, waypoints):
-        """
-        Find the closest waypoint to the car's current position
+        '''
+        Compute the control points given the current pose and waypoints.
         
-        pose: Pose object
-        waypoints: ndarray of shape (N, 7)
+        Args:
+        - pose: The current pose of the vehicle (Pose)
+        - waypoints: (n, 5) ndarray of waypoints (x, y, v, yaw, k)
         
-        steps:
-        1. if no waypoints within lookahead distance, return the closest waypoint
-        2. if waypoints within lookahead distance, track the farthest waypoint within lookahead distance
-        """
-        
-        position = pose.position
-        heading = pose.theta
-        
-        distance_to_waypoints = np.linalg.norm(waypoints[:, :2] - position, axis=1)
-        waypoint_indices_in_lookahead = np.where(distance_to_waypoints < self.lookahead)[0]
-        waypoints_in_lookahead = waypoints[waypoint_indices_in_lookahead,:]
-        
-        # check if waypoints_in_lookahead is empty
-        if waypoints_in_lookahead.size == 0:
-            # return closest waypoint
-            waypoint_to_track = waypoints[np.argmin(distance_to_waypoints)]
-        
-        # else, return the farthest waypoint within lookahead distance
-        else:
-            distance_to_waypoints_in_lookahead = distance_to_waypoints[waypoint_indices_in_lookahead]
-            # augment distance by heading. points in front of the car have a lower distance
-            heading_vector = np.array([np.cos(heading), np.sin(heading)])
-            
-            normalized_waypoint_headings = (waypoints_in_lookahead[:, :2] - position) / distance_to_waypoints_in_lookahead[:,None]
-            
-            augmented_distance_to_waypoints_in_lookahead = distance_to_waypoints_in_lookahead * np.dot(normalized_waypoint_headings, heading_vector)
-            
-            waypoint_to_track = waypoints_in_lookahead[np.argmax(augmented_distance_to_waypoints_in_lookahead)]
+        Returns:
+        - theta_e: Heading error (float)
+        - crosstrack_error: Crosstrack error (float)
+        - theta_ref: Target heading (float)
+        - kappa_ref: Target curvature (float)
+        - nearest_idx: Index of the nearest waypoint (int)
 
-        return waypoint_to_track
+        Modified: CV, used the code in LQR
+        '''
+        position, theta = pose.position, pose.theta
+        lookahead = self.lookahead
+        front_axle_position = position + (self.wheelbase+lookahead)* np.array([math.cos(theta), math.sin(theta)])
+        nearest_idx = nearest_point(front_axle_position[0], front_axle_position[1], waypoints)
+        front_axle_pose = Pose.from_position_theta(front_axle_position[0], 
+                                                   front_axle_position[1], 
+                                                   theta)
+        
+        theta_ref = waypoints[nearest_idx, 3]
+        theta_e = self._find_heading_error(theta, theta_ref)
+        gain = waypoints[nearest_idx, 5]
+        
+        return  nearest_idx, theta_e, theta_ref, gain
     
-    def _augment_lookahead(self):
-        self.lookahead = self.base_lookahead + self.alpha * self.prev_velocity
+    def get_steering_angle(self, pose, waypoints):
         
-    def _K_lookup(self):
-        K = self.K
-        if self.prev_velocity > self.K_thresh:
-            K = max(0.0, self.K * (1 - self.beta * ((self.prev_velocity - self.K_thresh)/ (self.max_speed-self.K_thresh))))
-        else:
-            K = self.K
-        return K
-    
-    def get_steering_angle(self, pose, waypoints, prev_velocity=0.0):
-        self.prev_velociy = prev_velocity
-        # augment lookahead distance by velocity
-        self._augment_lookahead()
+        (self.nearest_idx,
+         self.theta_e, 
+         theta_ref,  
+         gain) = self._find_waypoint_to_track(pose, waypoints)
         
-        waypoint_to_track = self._find_waypoint_to_track(pose, waypoints)
-        waypoint_ego = self._waypoint_to_ego(pose, waypoint_to_track)
+        self.theta_error_derivative_filter.update(self.theta_e)
+        waypoint_ego = self._waypoint_to_ego(pose, waypoints[self.nearest_idx])
         
-        K = self._K_lookup()
+        cur_theta_error_derivative = self.theta_error_derivative_filter.get_value()
         
-        angle = K * (2*(waypoint_ego[1]))/(self.lookahead ** 2)
-        angle = self._safety_bound(angle)
+        angle = gain * (2*(waypoint_ego.y))/(self.lookahead ** 2) + self.kd_theta * cur_theta_error_derivative
         
-        return angle, waypoint_to_track
+        return angle, waypoint_ego
