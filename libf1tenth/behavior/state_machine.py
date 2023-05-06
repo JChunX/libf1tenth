@@ -27,11 +27,11 @@ cruise_overtaking_params = {
 }
     
     
-class CruiseOvertakingStateMachine:
+class CruiseOvertakingStateMachine(StateMachine):
     
     def __init__(self):
-        self.states = ['nominal', 'cruise_control', 'lane_change']
-        super().__init__(self.states, 0)
+        states = ['nominal', 'cruise_control', 'lane_change']
+        super().__init__(states, 0)
         self.params = cruise_overtaking_params
         
         self.overtake_obs_free = False
@@ -54,15 +54,15 @@ class CruiseOvertakingStateMachine:
         cruise_thresh = self._get_cruise_thresh(telemetry['velocity'])
         transition_flag = False
         
-        if self.current_state == 'nominal':
+        if self.decode(self.current_state) == 'nominal':
 
             if (telemetry['wp_blocked'] 
                 and telemetry['obstacle_distance'] < cruise_thresh):
                 self.current_state = 1 # cruise_control
+                self.cruise_timer = time.time()
                 transition_flag = True
         
-        elif self.current_state == 'cruise_control':
-            
+        elif self.decode(self.current_state) == 'cruise_control':
             if ((not telemetry['wp_blocked'])
                 or (telemetry['obstacle_distance'] > cruise_thresh 
                     + self.params['nominal_cruise_hysteresis'])):
@@ -74,7 +74,7 @@ class CruiseOvertakingStateMachine:
                 self.current_state = 2 # lane_change
                 transition_flag = True
                 
-        elif self.current_state == 'lane_change':
+        elif self.decode(self.current_state) == 'lane_change':
             
             if telemetry['is_obs_free'] and not self.overtake_obs_free:
                 self.overtake_timer = time.time()
