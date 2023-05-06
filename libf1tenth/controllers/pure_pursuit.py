@@ -53,22 +53,23 @@ class PurePursuitController(LateralController):
         
         theta_ref = waypoints[nearest_idx, 3]
         theta_e = self._find_heading_error(theta, theta_ref)
-        gain = waypoints[nearest_idx, 5]
+        velocity = waypoints[nearest_idx, 2]
+        gain = 0.3
         
-        return  nearest_idx, theta_e, theta_ref, gain
+        return  nearest_idx, theta_e, theta_ref, gain, velocity
     
     def get_steering_angle(self, pose, waypoints):
         
         (self.nearest_idx,
          self.theta_e, 
          theta_ref,  
-         gain) = self._find_waypoint_to_track(pose, waypoints)
+         gain, velocity) = self._find_waypoint_to_track(pose, waypoints)
         
         self.theta_error_derivative_filter.update(self.theta_e)
         waypoint_ego = self._waypoint_to_ego(pose, waypoints[self.nearest_idx])
         
         cur_theta_error_derivative = self.theta_error_derivative_filter.get_value()
         
-        angle = gain * (2*(waypoint_ego.y))/(self.lookahead ** 2) + self.kd_theta * cur_theta_error_derivative
+        angle = gain * (2*(waypoint_ego[1]))/(self.lookahead ** 2) + self.kd_theta * cur_theta_error_derivative
         
-        return angle, waypoint_ego
+        return angle, waypoint_ego, velocity
