@@ -29,7 +29,7 @@ class Occupancies:
     - y_size: number of cells in y direction
     '''
     
-    def __init__(self, resolution, x_size, y_size, car_half_width=0.15):
+    def __init__(self, resolution, x_size, y_size, car_half_width=0.2):
         self.resolution = resolution
         self.x_size = x_size
         self.y_size = y_size

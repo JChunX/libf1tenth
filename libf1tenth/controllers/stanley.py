@@ -29,6 +29,8 @@ class StanleyController(LateralController):
         self.curvature = 0.0
         self.lookahead_schedule = lookahead_schedule
         
+        self.prev_steer = 0.0
+        
     @property
     def lookahead(self):
         if self.velocity < self.lookahead_schedule[0][0]:
@@ -92,8 +94,9 @@ class StanleyController(LateralController):
         else:
             return self.K, self.Kd
     
-    def get_steering_angle(self, pose, waypoints, steering=0.0):
+    def get_steering_angle(self, pose, waypoints):
         self.velocity = pose.velocity
+        steering = self.prev_steer
         
         self._find_waypoint_to_track(pose, steering, waypoints)
         self.steering_error = self._find_heading_error(pose.theta + steering,
@@ -115,5 +118,6 @@ class StanleyController(LateralController):
         else:
             angle = self.steering_error
         angle = self._safety_bound(angle)
+        self.prev_steer = angle
         
         return angle, waypoints[self.lookahead_waypoint_idx]

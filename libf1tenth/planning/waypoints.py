@@ -115,7 +115,7 @@ class Waypoints:
                           self.curvature[:,None])) # (N, 5)
         
     @staticmethod
-    def check_collisions(x, y, pose, occupancy_grid):
+    def check_collisions(x, y, pose, occupancy_grid, target_layer='laser', correct_offset=False):
         '''
         Checks waypoints if they are in collision with the occupancy grid.
         
@@ -124,6 +124,7 @@ class Waypoints:
         - y (np.ndarray): y in global frame
         - pose (Pose): current pose
         - occupancy_grid (Occupancies): occupancy grid
+        - target_layer (str): layer to check collisions with
         
         Returns:
         - num_collisions: number of waypoints in collision
@@ -133,8 +134,14 @@ class Waypoints:
                                y))
         positions_local = pose.global_position_to_pose_frame(positions)
         
+        # there is a certain y-offset in the waypoints because the car may be off-track
+        # so subtract the first y-offset from all y values
+        if correct_offset:
+            y_offset = positions_local[1,0]
+            positions_local[1,:] -= y_offset
+            
         num_collisions, collision_locs = occupancy_grid.check_collisions(
-            'laser', positions_local[0,:], positions_local[1,:])
+            target_layer, positions_local[0,:], positions_local[1,:])
         
         return num_collisions, collision_locs
     

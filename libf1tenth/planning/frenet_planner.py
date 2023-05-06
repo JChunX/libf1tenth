@@ -13,7 +13,7 @@ from libf1tenth.planning.waypoints import Waypoints
 # cost weights
 K_J = 0.001 # jerk
 K_T = -0.1 # time
-K_D = 10.0 # lateral offset
+K_D = 1.0 # lateral offset
 K_S = -0.1 # path progress
 K_LAT = 1.0
 K_LON = 1.0
@@ -74,7 +74,7 @@ class FrenetPlanner(PathPlanner):
     '''
     FrenetPlanner plans a path using the Frenet frame while avoiding obstacles.
     '''
-    def __init__(self, waypoints, left_lim=0.4, right_lim=0.4, lane_width=0.4, t_step=0.1, dt=0.2, logger=None):
+    def __init__(self, waypoints, left_lim=0.6, right_lim=0.6, lane_width=0.3, t_step=0.1, dt=0.1, logger=None):
         '''
         Initializes the frenet planner with waypoints and a frenet frame
         
@@ -130,7 +130,7 @@ class FrenetPlanner(PathPlanner):
                 self.current_path = best_path
                 self.plan_time = time.time()
             
-            elif (path_dt > 0.2
+            elif (path_dt > 0.9
                     or self.current_path.num_collisions(pose, occupancy_grid) > 0):
                 self.current_path = best_path
                 self.plan_time = time.time()
@@ -145,9 +145,9 @@ class FrenetPlanner(PathPlanner):
     def _augment_t(self, s0_dot):
         # augment t by s0_dot
         if s0_dot < 1.0:
-            t_plan = 3.0
+            t_plan = 1.0
         else:
-            t_plan = 4.0 / s0_dot
+            t_plan = 1.0#4.0 / s0_dot
             
         return t_plan
     
@@ -157,17 +157,14 @@ class FrenetPlanner(PathPlanner):
         costs = []
         
         t_plan = self._augment_t(s0_dot)
-        
-        t_min = t_plan
         t_max = t_plan
-        t_step = t_plan / 50.0
-        
-        for d_target in [-self.right_lim, self.left_lim]:#np.arange(-self.right_lim, self.left_lim+0.01, self.lane_width):
+        #[d0-self.right_lim, d0, d0+self.left_lim]
+        for d_target in np.arange(d0 -self.right_lim, d0 + self.left_lim+0.01, self.lane_width):
             #d_target += np.random.uniform(-self.lane_width/2.0, self.lane_width/2.0)
 
-            for t_target in np.arange(t_min, t_max+0.01, t_step):
+            for t_target in [t_max]:
                 lateral_poly = QuinticPolynomial(d0, d0_dot, d0_ddot, d_target, 0.0, 0.0, t_target)
-    
+
                 t = np.arange(0, t_target, self.dt)
                 d = lateral_poly.calc_point(t)
                 

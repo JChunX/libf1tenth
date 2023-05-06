@@ -24,7 +24,7 @@ class LateralLQRController(LateralController):
                        [0.55,0.01,0.001,0.046],
                        [0.55,0.01,0.001,0.046],
                        [0.55,0.01,0.001,0.046]],
-                 lookaheads = [0.05,0.2,0.31,0.31,0.31],
+                 lookaheads = [0.1,0.2,0.31,0.31,0.4],
                  R: List[float]=[0.0062], 
                  iterations: int=50, 
                  eps: float=0.01, 
@@ -91,7 +91,7 @@ class LateralLQRController(LateralController):
         if velocity < self.control_vels[0]:
             return self.lookaheads[0]
         if velocity > self.control_vels[1]:
-            return self.lookaheads[1]
+            return self.lookaheads[-1]
         lookahead = np.interp(velocity, self.control_vels, self.lookaheads)
 
         return lookahead
@@ -101,7 +101,7 @@ class LateralLQRController(LateralController):
         if velocity < self.control_vels[0]:
             return np.diag(self.Qs[0])
         if velocity > self.control_vels[1]:
-            return np.diag(self.Qs[1])
+            return np.diag(self.Qs[-1])
         
         q1s = self.Qs[:,0]
         q2s = self.Qs[:,1]
@@ -171,7 +171,7 @@ class LateralLQRController(LateralController):
         steer_angle_feedforward = self.kappa_ref * self.wheelbase
 
         # Calculate final steering angle in [rad]
-        steer_angle = steer_angle_feedback + 1.2 * steer_angle_feedforward
+        steer_angle = steer_angle_feedback + 1.0 * steer_angle_feedforward
         + self.angle_k_d * state[1][0]
         #steer_angle = self._safety_bound(steer_angle)
 
