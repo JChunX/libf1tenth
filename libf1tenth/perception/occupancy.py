@@ -29,7 +29,7 @@ class Occupancies:
     - y_size: number of cells in y direction
     '''
     
-    def __init__(self, resolution, x_size, y_size, car_half_width=0.2):
+    def __init__(self, resolution, x_size, y_size, car_half_width=0.25):
         self.resolution = resolution
         self.x_size = x_size
         self.y_size = y_size
@@ -160,10 +160,10 @@ class Occupancies:
         self.layers[layer_name]['occupancy'][x_occ_idx, y_occ_idx] = confidence
         
         # x from 0 to 0.3, y from -0.2 to 0.2 should be set to zero
-        x_ego = np.linspace(0, 0.3, 100)
-        y_ego = np.linspace(-0.2, 0.2, 100)
-        ego_x_idx, ego_y_idx = self.pc_to_grid_indices(x_ego, y_ego)
-        self.layers[layer_name]['occupancy'][ego_x_idx, ego_y_idx] = 0
+        # x_ego = np.linspace(0, 0.3, 100)
+        # y_ego = np.linspace(-0.2, 0.2, 100)
+        # ego_x_idx, ego_y_idx = self.pc_to_grid_indices(x_ego, y_ego)
+        # self.layers[layer_name]['occupancy'][ego_x_idx, ego_y_idx] = 0
         
     @staticmethod
     def sphere(n):
