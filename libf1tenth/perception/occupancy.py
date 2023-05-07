@@ -29,7 +29,7 @@ class Occupancies:
     - y_size: number of cells in y direction
     '''
     
-    def __init__(self, resolution, x_size, y_size, car_half_width=0.3):
+    def __init__(self, resolution, x_size, y_size, car_half_width=0.2):
         self.resolution = resolution
         self.x_size = x_size
         self.y_size = y_size
@@ -253,9 +253,29 @@ class Occupancies:
         x_indices = x_indices[valid_mask]
         y_indices = y_indices[valid_mask]
         # check if any of the line segment points are occupied
-        is_collision = not np.all(occ_grid[x_indices, y_indices] == 0)
-
-        return is_collision
+        occ_bool = occ_grid[x_indices, y_indices] != 0
+        num_collisions = np.count_nonzero(occ_bool)
+        collision_x = x_pc[indices[occ_bool]].reshape(-1, 1)
+        collision_y = y_pc[indices[occ_bool]].reshape(-1, 1)
+        collision_locs = np.hstack((collision_x, collision_y))
+            
+        return num_collision, collision_locs
+    
+    def check_any_collision(self, layer_name):
+        '''
+        Returns all collision locations in the given layer
+        
+        Args:
+        - layer_name: name of the layer to check
+        '''
+        
+        occ_grid = self.layers[layer_name]['occupancy']
+        num_collision = np.count_nonzero(occ_grid)
+        collision_x, collision_y = np.where(occ_grid != 0)
+        collision_x, collision_y = self.grid_indices_to_pc(collision_x, collision_y)
+        collision_locs = np.hstack((collision_x.reshape(-1, 1), collision_y.reshape(-1, 1)))
+        
+        return num_collision, collision_locs
         
     def to_msg(self, layer_name, frame_id):
         '''
