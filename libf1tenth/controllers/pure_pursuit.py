@@ -54,7 +54,7 @@ class PurePursuitController(LateralController):
         theta_ref = waypoints[nearest_idx, 3]
         theta_e = self._find_heading_error(theta, theta_ref)
         velocity = waypoints[nearest_idx, 2]
-        gain = 0.3
+        gain = waypoints[nearest_idx, 5]
         
         return  nearest_idx, theta_e, theta_ref, gain, velocity
     
