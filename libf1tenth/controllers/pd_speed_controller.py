@@ -3,7 +3,7 @@ from libf1tenth.filter import DerivativeFilter, MovingAverageFilter
 from libf1tenth.controllers import LongitudinalController
 
 class PDSpeedController(LongitudinalController):
-    def __init__(self, k_p=1.0, k_d=0.0, 
+    def __init__(self, k_p=0.9, k_d=0.1, 
                  k_p_brake=3.0, k_d_brake=0.0,
                  buffer_size=5):
         self.k_p = k_p

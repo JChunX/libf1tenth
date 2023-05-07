@@ -10,7 +10,7 @@ from libf1tenth.util.quick_maths import nearest_point
 
 class PurePursuitController(LateralController):
     
-    def __init__(self, lookahead, kd_theta: float=0.1, wheelbase: float=0.33, buffer_size: int=5):
+    def __init__(self, lookahead: float=1.5, kd_theta: float=0.1, wheelbase: float=0.33, buffer_size: int=5):
         '''
         pure persuit controller
         
@@ -53,23 +53,28 @@ class PurePursuitController(LateralController):
         
         theta_ref = waypoints[nearest_idx, 3]
         theta_e = self._find_heading_error(theta, theta_ref)
+        kappa = waypoints[nearest_idx, 4]
         velocity = waypoints[nearest_idx, 2]
-        gain = waypoints[nearest_idx, 5]
+        if waypoints.shape[1] == 6:
+            gain = waypoints[nearest_idx, 5]
+        else: 
+            gain = 0.3
         
-        return  nearest_idx, theta_e, theta_ref, gain, velocity
+        return  nearest_idx, theta_e, theta_ref, kappa, gain, velocity
     
     def get_steering_angle(self, pose, waypoints):
         
         (self.nearest_idx,
          self.theta_e, 
          theta_ref,  
+         kappa,
          gain, velocity) = self._find_waypoint_to_track(pose, waypoints)
         
         self.theta_error_derivative_filter.update(self.theta_e)
         waypoint_ego = self._waypoint_to_ego(pose, waypoints[self.nearest_idx])
         
         cur_theta_error_derivative = self.theta_error_derivative_filter.get_value()
+
+        angle = gain * (2*(waypoint_ego[1]))/(self.lookahead ** 2)# + self.kd_theta * cur_theta_error_derivative
         
-        angle = gain * (2*(waypoint_ego[1]))/(self.lookahead ** 2) + self.kd_theta * cur_theta_error_derivative
-        
-        return angle, waypoint_ego, velocity
+        return angle, waypoints[self.nearest_idx], velocity
