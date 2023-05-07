@@ -29,7 +29,7 @@ class Occupancies:
     - y_size: number of cells in y direction
     '''
     
-    def __init__(self, resolution, x_size, y_size, car_half_width=0.2):
+    def __init__(self, resolution, x_size, y_size, car_half_width=0.3):
         self.resolution = resolution
         self.x_size = x_size
         self.y_size = y_size
@@ -110,6 +110,20 @@ class Occupancies:
                                             self.y_size), 
                                             dtype=float)}
         return self
+    
+    def subtract_layers(self, layer_name2, layer_name1):
+        '''
+        Subtracts layer 1 from layer 2 and returns the result
+        
+        Args:
+        - layer_name1: name of layer 1
+        - layer_name2: name of layer 2
+        '''
+        assert layer_name1 in self.layers, "layer 1 does not exist"
+        assert layer_name2 in self.layers, "layer 2 does not exist"
+        
+        occ_sub = self.layers[layer_name2]['occupancy'] - self.layers[layer_name1]['occupancy']
+        return occ_sub
         
     def set_layer_property(self, layer_name, property_name, value):
         '''

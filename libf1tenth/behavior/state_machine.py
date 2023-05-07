@@ -26,7 +26,6 @@ cruise_overtaking_params = {
     'overtake_override_velocity': 2.5, # m/s, speed at which override cruise control and overtake
 }
     
-    
 class CruiseOvertakingStateMachine(StateMachine):
     
     def __init__(self):
@@ -57,7 +56,7 @@ class CruiseOvertakingStateMachine(StateMachine):
         if self.decode(self.current_state) == 'nominal':
 
             if (telemetry['wp_blocked'] 
-                and telemetry['obstacle_distance'] < cruise_thresh):
+                and (telemetry['obstacle_distance'] < cruise_thresh)):
                 self.current_state = 1 # cruise_control
                 self.cruise_timer = time.time()
                 transition_flag = True

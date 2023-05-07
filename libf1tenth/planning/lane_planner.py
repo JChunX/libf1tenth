@@ -39,4 +39,4 @@ class LanePlanner(PathPlanner):
         lane_idx = np.argmax(lane_free)
         lane = self.lanes[lane_idx]
         
-        return lane
+        return lane, lane_idx
