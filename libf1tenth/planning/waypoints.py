@@ -12,12 +12,13 @@ class Waypoints:
     upon initialization, splines are created for upsampling, yaw, and curvature
     '''
              
-    def __init__(self, x, y, velocity, is_periodic=False):
+    def __init__(self, x, y, velocity, gain=None, is_periodic=False):
         self.t = np.arange(len(x))
         self.x = x.astype(np.double)
         self.y = y.astype(np.double)
         self.velocity = velocity
         self.is_periodic = is_periodic
+        self.gain = gain if gain is not None else np.ones(len(x)) * 0.3
         self._create_splines()
         
     @property
@@ -29,17 +30,18 @@ class Waypoints:
         return self._compute_curvature()
         
     @classmethod
-    def from_csv(cls, path, is_periodic=False):
+    def from_csv(cls, path, is_periodic=False, gain=False):
         df = pd.read_csv(path)
         return cls(df['x'].values, 
                    df['y'].values, 
                    df['velocity'].values, 
+                   df['gain'].values if gain else None)
                    is_periodic=is_periodic)
     
     @classmethod
-    def from_numpy(cls, arr):
+    def from_numpy(cls, arr, gain=False):
         assert arr.shape[1] >= 3, "array must have >= 3 columns"
-        return cls(arr[:,0], arr[:,1], arr[:,2])
+        return cls(arr[:,0], arr[:,1], arr[:,2], arr[:,3] if gain else None)
     
     def _compute_yaw(self):
         t = self.t
@@ -75,7 +77,11 @@ class Waypoints:
                             self.velocity, 
                             kind='linear', 
                             fill_value='extrapolate')
-        
+        self.s_gain = interpolate.interp1d(t,
+                            self.gain,
+                            kind='linear',
+                            fill_value='extrapolate')
+
     def upsample(self, factor):
         # assert factor is an integer
         assert factor == int(factor), "factor must be an integer"
@@ -83,6 +89,7 @@ class Waypoints:
         ts = np.arange(0, len(self.x), 1/factor)[:-factor+1]
         x = self.cs_x(ts)
         y = self.cs_y(ts)
+        gain = self.s_gain(ts)
         
         if self.is_periodic:
             x[-1] = x[0]
@@ -90,21 +97,22 @@ class Waypoints:
         
         velocity = self.s_velocity(ts)
 
-        return Waypoints(x, y, velocity)
+        return Waypoints(x, y, velocity, gain, is_periodic=self.is_periodic)
     
     def smooth(self, sigma):
         x = gaussian_filter(self.x, sigma=sigma)
         y = gaussian_filter(self.y, sigma=sigma)
 
         return Waypoints(x, y,  
-                         self.velocity)
+                         self.velocity, self.gain, is_periodic=self.is_periodic)
         
     def to_csv(self, csv):
         df = pd.DataFrame({'x': self.x, 
                            'y': self.y, 
                            'velocity': self.velocity,
                            'yaw': self.yaw,
-                           'curvature': self.curvature})
+                           'curvature': self.curvature,
+                           'gain': self.gain})
         df.to_csv(csv, index=False)
         
     def to_numpy(self):
@@ -112,7 +120,8 @@ class Waypoints:
                           self.y[:,None], 
                           self.velocity[:,None],
                           self.yaw[:,None],
-                          self.curvature[:,None])) # (N, 5)
+                          self.curvature[:,None],
+                          self.gain[:,None])) # (N, 6)
         
     @staticmethod
     def check_collisions(x, y, pose, occupancy_grid, target_layer='laser', correct_offset=False):
@@ -150,7 +159,8 @@ class Waypoints:
                 self.y[idx], 
                 self.velocity[idx], 
                 self.yaw[idx], 
-                self.curvature[idx])
+                self.curvature[idx],
+                self.gain[idx])
         
     def __len__(self):
         return self.x.shape[0]
