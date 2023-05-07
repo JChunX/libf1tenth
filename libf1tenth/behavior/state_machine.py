@@ -70,8 +70,9 @@ class CruiseOvertakingStateMachine(StateMachine):
                 
             elif (telemetry['in_overtake_zone'] 
                   or (telemetry['velocity'] < self.params['overtake_override_velocity'])):
-                self.current_state = 2 # lane_change
-                transition_flag = True
+                pass
+                # self.current_state = 2 # lane_change
+                # transition_flag = True
                 
         elif self.decode(self.current_state) == 'lane_change':
             
