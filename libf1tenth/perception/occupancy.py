@@ -29,7 +29,7 @@ class Occupancies:
     - y_size: number of cells in y direction
     '''
     
-    def __init__(self, resolution, x_size, y_size, car_half_width=0.25):
+    def __init__(self, resolution, x_size, y_size, car_half_width=0.2):
         self.resolution = resolution
         self.x_size = x_size
         self.y_size = y_size
@@ -71,7 +71,7 @@ class Occupancies:
         - y_idx: ndarray of shape (2, ) / scalar representing y indices of points in grid
         '''
         xy_pc = to_homogenous(x_pc, y_pc)
-        xy_idx = ((self._pc_to_grid @ xy_pc).T / self.resolution).astype(int)[:, :2].reshape(-1, 2)
+        xy_idx = (np.round((self._pc_to_grid @ xy_pc).T / self.resolution)).astype(int)[:, :2].reshape(-1, 2)
         
         if np.isscalar(x_pc):
             return xy_idx[0,0], xy_idx[0,1]

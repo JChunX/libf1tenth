@@ -14,7 +14,7 @@ class LanePlanner(PathPlanner):
         super().__init__()
         self.lanes = lanes
         
-    def plan(self, pose, occupancy_grid):
+    def plan(self, pose, occupancy_grid, current_lane):
         '''
         Plan a path through the waypoints given the occupancy grid.
         
@@ -36,6 +36,10 @@ class LanePlanner(PathPlanner):
             lane_free[i] = (num_collisions == 0)
             
         # select the first obstacle-free lane
+        # if current lane is free, stay in current lane
+        # if lane_free[current_lane]:
+        #     lane_idx = current_lane
+        # else:
         lane_idx = np.argmax(lane_free)
         lane = self.lanes[lane_idx]
         

@@ -22,7 +22,7 @@ class StateMachine:
 cruise_overtaking_params = {
     'nominal_cruise_hysteresis': 0.5, # meters
     'cruise_threshold_baseline': 3, # meters, cruise distance baseline at 1m/s
-    'overtake_timeout': 2.0, # seconds
+    'overtake_timeout': 3.0, # seconds
     'overtake_override_velocity': 2.5, # m/s, speed at which override cruise control and overtake
 }
     
