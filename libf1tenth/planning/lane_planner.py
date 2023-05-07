@@ -30,7 +30,7 @@ class LanePlanner(PathPlanner):
             lane[:,0], 
             lane[:,1], 
             pose, occupancy_grid,
-            target_layer='laser',
+            target_layer='obs',
             correct_offset=False)
             
             lane_free[i] = (num_collisions == 0)
@@ -39,4 +39,4 @@ class LanePlanner(PathPlanner):
         lane_idx = np.argmax(lane_free)
         lane = self.lanes[lane_idx]
         
-        return lane, lane_idx
+        return lane, lane_idx, lane_free

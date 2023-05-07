@@ -173,7 +173,7 @@ class Occupancies:
         struct[mask] = 1
         return struct.astype(np.bool)
         
-    def dilate_layer(self, layer_name, iterations=1):
+    def dilate_layer(self, layer_name, iterations=1, radius=None):
         '''
         dilates the occupancy of given layer by the given number of iterations
         this operation will dilate any values > 0.5 and discard probabilities
@@ -182,11 +182,13 @@ class Occupancies:
         - layer_name: name of the layer to dilate
         - iterations: number of times to dilate the layer
         '''
+        if radius is None:
+            radius = self.car_half_width
+        n = int(self.car_half_width / self.resolution)
         # set all values > 0.5 to 1 and all values <= 0.5 to 0
         occupancy = self.layers[layer_name]['occupancy']
         occupancy = (occupancy > 0.5).astype(float)
         
-        n = int(self.car_half_width / self.resolution)
         struct = self.sphere(n)
         self.layers[layer_name]['occupancy'] = binary_dilation(
                                                     occupancy, structure=struct,
