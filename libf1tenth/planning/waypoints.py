@@ -30,16 +30,20 @@ class Waypoints:
         return self._compute_curvature()
         
     @classmethod
-    def from_csv(cls, path, is_periodic=False, gain=False):
+    def from_csv(cls, path, is_periodic=False):
+        
         df = pd.read_csv(path)
+        # check if gain column exists
+        gain = 'gain' in df.columns
         return cls(df['x'].values, 
                    df['y'].values, 
                    df['velocity'].values, 
-                   df['gain'].values if gain else None)
+                   df['gain'].values if gain else None,
                    is_periodic=is_periodic)
     
     @classmethod
-    def from_numpy(cls, arr, gain=False):
+    def from_numpy(cls, arr):
+        gain = arr.shape[1] == 4
         assert arr.shape[1] >= 3, "array must have >= 3 columns"
         return cls(arr[:,0], arr[:,1], arr[:,2], arr[:,3] if gain else None)
     
