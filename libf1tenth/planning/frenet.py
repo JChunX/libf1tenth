@@ -5,7 +5,7 @@ from libf1tenth.util.quick_maths import l2_norm
 
 class FrenetFrame:
     
-    def __init__(self, waypoints):
+    def __init__(self, waypoints, make_cs=True):
         '''
         Defines a frenet frame for a given set of waypoints
         
@@ -24,10 +24,12 @@ class FrenetFrame:
         self.s_max = self.s[-1]
         
         # parametric splines
-        self.cs_sx = CubicSpline(self.s, self.x)
-        self.cs_sy = CubicSpline(self.s, self.y)
-        self.cs_syaw = CubicSpline(self.s, self.yaw)
-        self.cs_sk = CubicSpline(self.s, self.curvature)
+        self.make_cs = make_cs
+        if self.make_cs:
+            self.cs_sx = CubicSpline(self.s, self.x)
+            self.cs_sy = CubicSpline(self.s, self.y)
+            self.cs_syaw = CubicSpline(self.s, self.yaw)
+            self.cs_sk = CubicSpline(self.s, self.curvature)
         
     def wrap(self, s):
         '''
@@ -137,6 +139,7 @@ class FrenetFrame:
         - s: path progress, ndarray or float
         - d: lateral offset, ndarray or float
         '''
+        assert self.make_cs, 'Must have splines to convert to frenet frame, re-initialize with make_cs=True'
         # if x is scalar, make it a 1d array
         is_scalar = np.isscalar(x)
         if is_scalar:
