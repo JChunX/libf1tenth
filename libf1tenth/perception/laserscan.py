@@ -56,10 +56,15 @@ class Scan:
         idx_max = int((ang_max - self.angle_min) // self.angle_increment)
         idx_min = max(0, idx_min)
         idx_max = min(len(self.ranges), idx_max)
-        self.angle_min = ang_min
-        self.angle_max = ang_max 
-        self.ranges = self.ranges[idx_min:idx_max]
-        self.angles = self.angles[idx_min:idx_max]
+
+        ranges = self.ranges[idx_min:idx_max]
+        angles = self.angles[idx_min:idx_max]
+        
+        new_scan = Scan(ang_min, ang_max,
+                        self.angle_increment, self.time_increment,
+                        self.scan_time, self.range_min, self.range_max,
+                        ranges)
+        return new_scan
         
     def get_valid_ranges_and_angle(self):
         """

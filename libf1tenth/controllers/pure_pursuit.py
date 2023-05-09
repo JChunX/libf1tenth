@@ -11,7 +11,7 @@ from libf1tenth.planning import FrenetFrame
 
 class PurePursuitController(LateralController):
     
-    def __init__(self, lookahead: float=1.2, kd_theta: float=0.1, wheelbase: float=0.33, buffer_size: int=5):
+    def __init__(self, lookahead: float=1.2, kd_theta: float=0.4, wheelbase: float=0.33, buffer_size: int=5):
         '''
         pure persuit controller
         
@@ -93,6 +93,6 @@ class PurePursuitController(LateralController):
         
         cur_theta_error_derivative = self.theta_error_derivative_filter.get_value()
 
-        angle = gain * (2*(waypoint_ego[1]))/(self.lookahead ** 2)# + self.kd_theta * cur_theta_error_derivative
+        angle = gain * (2*(waypoint_ego[1]))/(self.lookahead ** 2) + self.kd_theta * cur_theta_error_derivative
         
-        return angle, waypoints[self.nearest_idx], velocity
+        return float(angle), waypoints[self.nearest_idx], velocity
