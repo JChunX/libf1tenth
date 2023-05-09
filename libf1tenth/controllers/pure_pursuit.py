@@ -11,7 +11,7 @@ from libf1tenth.planning import FrenetFrame
 
 class PurePursuitController(LateralController):
     
-    def __init__(self, lookahead: float=1.5, kd_theta: float=0.1, wheelbase: float=0.33, buffer_size: int=5):
+    def __init__(self, lookahead: float=1.2, kd_theta: float=0.1, wheelbase: float=0.33, buffer_size: int=5):
         '''
         pure persuit controller
         
@@ -70,9 +70,9 @@ class PurePursuitController(LateralController):
         theta_ref = waypoints[lookahead_idx, 3]
         theta_e = self._find_heading_error(theta, theta_ref)
         kappa = waypoints[lookahead_idx, 4]
-        velocity = waypoints[lookahead_idx, 2]
+        velocity = waypoints[closest_idx, 2]
         if waypoints.shape[1] == 6:
-            gain = waypoints[lookahead_idx, 5]
+            gain = waypoints[closest_idx, 5]
         else: 
             gain = 0.3
         

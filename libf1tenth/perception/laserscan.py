@@ -54,6 +54,8 @@ class Scan:
         """
         idx_min = int((ang_min - self.angle_min) // self.angle_increment)
         idx_max = int((ang_max - self.angle_min) // self.angle_increment)
+        idx_min = max(0, idx_min)
+        idx_max = min(len(self.ranges), idx_max)
         self.angle_min = ang_min
         self.angle_max = ang_max 
         self.ranges = self.ranges[idx_min:idx_max]
