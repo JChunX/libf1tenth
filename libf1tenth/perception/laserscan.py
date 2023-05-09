@@ -58,7 +58,6 @@ class Scan:
         idx_max = min(len(self.ranges), idx_max)
 
         ranges = self.ranges[idx_min:idx_max]
-        angles = self.angles[idx_min:idx_max]
         
         new_scan = Scan(ang_min, ang_max,
                         self.angle_increment, self.time_increment,
